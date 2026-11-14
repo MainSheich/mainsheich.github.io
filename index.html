@@ -63,6 +63,14 @@ input{font:inherit;width:100%;padding:11px 12px;border:1px solid var(--bd);borde
 label{font-size:13px;color:var(--mu)}
 select{font:inherit;width:100%;padding:11px 12px;border:1px solid var(--bd);border-radius:12px;background:var(--gl);color:var(--tx);margin:4px 0 10px}
 .chip.cv{background:var(--ok)}
+#pop{position:fixed;top:calc(12px + env(safe-area-inset-top,0px));left:0;right:0;display:flex;justify-content:center;z-index:70;padding:0 12px;pointer-events:none}
+.popc{pointer-events:auto;max-width:460px;width:100%;background:var(--bg);background-image:var(--bg2);border:2px solid var(--late);border-radius:16px;padding:14px 16px;box-shadow:var(--sh)}.popt{margin:8px 0;font-size:14px}
+.tlw{padding:0 14px}.tl{position:relative;height:28px;background:var(--bd);border-radius:8px;overflow:hidden;direction:ltr}
+.tl i{position:absolute;top:0;bottom:0;display:flex;align-items:center;justify-content:center;font-style:normal;font-size:11px;font-weight:700;color:#0b3b24}
+.tl i.g{background:#7fd6a4}.tl i.g2{background:#8fc5ff;color:#0b2a4d}.tl i.r{background:#f5a9a1;color:#6b1a12}
+.ax{position:relative;height:16px;margin:3px 14px 0;direction:ltr}.ax span{position:absolute;transform:translateX(-50%);font-size:10px;color:var(--mu)}
+.sf{border:1px solid var(--bd);border-radius:14px;padding:12px 14px;margin:8px 0 12px;background:var(--gl)}.sfh{display:flex;justify-content:space-between;margin-bottom:8px}
+.bm{font-size:13px;margin-top:6px}.bm.bad{color:var(--no);font-weight:700}.bm.good{color:var(--ok);font-weight:700}
 .hol{font-size:11px;line-height:1.3;margin-bottom:2px;color:var(--mu)}.hol.yt{color:var(--no);font-weight:700}.hol.cm{color:var(--late);font-weight:700}.hol.fast{color:var(--early);font-weight:700}.hol.rc{color:var(--ac2)}
 .day.sat{background:color-mix(in srgb,var(--bd) 28%,var(--gl))}.day.ytd{background:color-mix(in srgb,var(--no) 12%,var(--gl))}
 @media(max-width:640px){.hol{font-size:9px}}
@@ -145,6 +153,43 @@ function analyze(d){
 }
 const violText=an=>an.viol.map(([a,b,h,n])=>m2t(a)+'–'+m2t(b)+' ('+h+' עובדים במקום '+n+')').join(', ');
 function alertText(an){const p=[];if(an.missing.length)p.push('חסר עובד '+fromTo(an.missing));if(an.viol.length)p.push('חריגה מדרישת הכיסוי: '+violText(an));return p.join(' · ')}
+let bdate=todayK;
+function bnav(n){if(n===0)bdate=todayK;else{const d=kd(bdate);d.setDate(d.getDate()+n);bdate=key(d.getFullYear(),d.getMonth(),d.getDate())}render()}
+function covSegs(k,day,lo,hi){
+  const ab={};
+  reqs.filter(r=>r.date===k).forEach(r=>{const u=users.find(x=>x.id===r.uid);if(u)(ab[u.id]=ab[u.id]||[]).push(...absOf(r,u))});
+  const cv=covers.filter(c=>c.date===k),pts=new Set([1080,lo,hi]);
+  day.forEach(x=>x.sh.forEach(([a,b])=>{pts.add(a);pts.add(b)}));
+  Object.values(ab).forEach(l=>l.forEach(([a,b])=>{pts.add(a);pts.add(b)}));
+  cv.forEach(c=>{pts.add(tm2(c.from));pts.add(tm2(c.to))});
+  const P=[...pts].filter(p=>p>=lo&&p<=hi).sort((a,b)=>a-b),out=[];
+  for(let i=0;i<P.length-1;i++){
+    const a=P[i],b=P[i+1],need=a>=1080?3:2;
+    const have=day.filter(x=>x.sh.some(([s1,e1])=>s1<=a&&e1>=b)&&!(ab[x.u.id]||[]).some(([s1,e1])=>s1<=a&&e1>=b)).length+cv.filter(c=>tm2(c.from)<=a&&tm2(c.to)>=b).length;
+    out.push({a:a,b:b,have:have,need:need});
+  }
+  return out;
+}
+function shiftBoard(k){
+  const day=users.map(u=>({u:u,sh:shOf(u,k)})).filter(x=>x.sh.length);
+  if(!day.length)return '<div class="mu" style="padding:10px 0">אין משמרות ביום זה</div>';
+  const all=[].concat(...day.map(x=>x.sh)),lo=Math.min(...all.map(x=>x[0])),hi=Math.max(...all.map(x=>x[1])),T=hi-lo;
+  const seg=(a,b,c,t)=>{a=Math.max(a,lo);b=Math.min(b,hi);return b>a?'<i class="'+c+'" style="left:'+((a-lo)/T*100).toFixed(2)+'%;width:'+((b-a)/T*100).toFixed(2)+'%">'+(t||'')+'</i>':''};
+  let ax='<div class="ax">';for(let t=lo;t<=hi;t+=120)ax+='<span style="left:'+((t-lo)/T*100).toFixed(2)+'%">'+m2t(t)+'</span>';ax+='</div>';
+  const cs=covSegs(k,day,lo,hi),bad=cs.filter(x=>x.have<x.need);
+  let h='<label>כיסוי כללי</label><div class="sf"><div class="tlw"><div class="tl">'+cs.map(x=>seg(x.a,x.b,x.have>=x.need?'g':'r',x.have+'/'+x.need)).join('')+'</div></div>'+ax+(bad.length?'<div class="bm bad">⚠ חסרים עובדים: '+bad.map(x=>m2t(x.a)+'–'+m2t(x.b)+' ('+x.have+' מתוך '+x.need+')').join(', ')+'</div>':'<div class="bm good">✓ הכיסוי מלא לאורך כל היום</div>')+'<div class="mu" style="font-size:12px;margin-top:4px">נדרש: 2 עובדים, ומשעה 18:00 3 עובדים</div></div><label>לפי עובד</label>';
+  const rd=reqs.filter(r=>r.date===k);
+  day.forEach(x=>{
+    const rs=rd.filter(r=>r.uid===x.u.id),ab=[];rs.forEach(r=>absOf(r,x.u).forEach(a=>ab.push(a)));
+    const cov=covers.filter(c=>c.date===k&&rs.some(r=>r.id===c.req));
+    h+='<div class="sf"><div class="sfh"><b>'+esc(x.u.name)+'</b><span class="mu">'+rng(x.sh)+'</span></div><div class="tlw"><div class="tl">'+x.sh.map(([a,b])=>seg(a,b,'g')).join('')+ab.map(a=>seg(a[0],a[1],'r','חסר')).join('')+'</div></div>'+ax+(ab.length?'<div class="bm bad">חסר '+rng(ab)+' · '+rs.map(r=>esc(desc(r))).join(', ')+'</div>':'<div class="bm good">משמרת מלאה ✓</div>')+(cov.length?'<div class="mu" style="font-size:12px">↪ מילוי: '+cov.map(c=>esc(c.name)+' '+c.from+'–'+c.to).join(', ')+'</div>':'')+'</div>';
+  });
+  covers.filter(c=>c.date===k).forEach(c=>{h+='<div class="sf"><div class="sfh"><b>↪ '+esc(c.name)+(c.uid?'':' (זמני)')+'</b><span class="mu">מילוי '+c.from+'–'+c.to+'</span></div><div class="tlw"><div class="tl">'+seg(tm2(c.from),tm2(c.to),'g2')+'</div></div>'+ax+'</div>'});
+  return h;
+}
+function boardView(){
+  return '<div class="glass"><div class="nav"><button onclick="bnav(-1)">›</button><div class="ttl"><b>משמרות</b><span>'+esc(fmtD(bdate))+'</span></div><button onclick="bnav(1)">‹</button><button onclick="bnav(0)">היום</button></div><div class="leg"><span><i style="background:#7fd6a4"></i>עובד במשמרת</span><span><i style="background:#f5a9a1"></i>חסר (לפי בקשה)</span><span><i style="background:#8fc5ff"></i>מילוי חסר</span></div>'+shiftBoard(bdate)+'</div>';
+}
 function schedHtml(k){
   const day=users.map(u=>({u:u,sh:shOf(u,k)})).filter(x=>x.sh.length);
   if(!day.length)return '';
@@ -273,9 +318,10 @@ let HM=hStart(new Date(tm.getFullYear(),tm.getMonth(),tm.getDate(),12));
 function appView(){
   const mg=me.role==='manager'||me.role==='admin',un=msgs.filter(m=>m.to===me.id&&!m.read).length;
   let h='<div class="top"><div class="brand">ניהול חופשות עובדים</div><div class="who"><span class="av">'+esc(me.name.charAt(0))+'</span><span><b>'+esc(me.name)+'</b>'+' · '+RL[me.role]+'</span><button onclick="logout()">יציאה</button></div></div>';
-  h+='<div class="seg"><button class="'+(tab==='cal'?'on':'')+'" onclick="setTab(\'cal\')">לוח שנה</button><button class="'+(tab==='inbox'?'on':'')+'" onclick="setTab(\'inbox\')">הודעות'+(un?'<span class="bdg">'+un+'</span>':'')+'</button>'+(mg?'<button class="'+(tab==='staff'?'on':'')+'" onclick="setTab(\'staff\')">ניהול</button>':'')+'</div>';
-  h+=tab==='cal'?calView():tab==='inbox'?inboxView():staffView();
+  h+='<div class="seg"><button class="'+(tab==='cal'?'on':'')+'" onclick="setTab(\'cal\')">לוח שנה</button><button class="'+(tab==='inbox'?'on':'')+'" onclick="setTab(\'inbox\')">הודעות'+(un?'<span class="bdg">'+un+'</span>':'')+'</button>'+(mg?'<button class="'+(tab==='board'?'on':'')+'" onclick="setTab(\'board\')">משמרות</button>':'')+(mg?'<button class="'+(tab==='staff'?'on':'')+'\" onclick="setTab(\'staff\')">ניהול</button>':'')+'</div>';
+  h+=tab==='cal'?calView():tab==='inbox'?inboxView():tab==='board'?boardView():staffView();
   $('#app').innerHTML=h;
+  popups();
 }
 function calView(){
   const priv=me.role==='manager'||me.role==='admin';let sm;
@@ -305,7 +351,7 @@ function openM(k,eid){
   const list=reqs.filter(x=>x.date===k);
   let h='<div class="ov" onclick="if(event.target===this)closeM()"><div class="md"><h3>'+(medit?'עריכת בקשה':'בקשה חדשה')+'</h3><div class="sub">'+fmtD(k)+'</div>';
   if(lk)h+='<div class="lockb">🔒 היום נעול על ידי המנהל'+(mg?'':' – לא ניתן להגיש בקשות חדשות')+'</div>';
-  if(mg)h+=schedHtml(k);
+  if(mg)h+=shiftBoard(k);
   if(list.length){h+='<label>בקשות ביום זה</label>';list.forEach(x=>{h+='<div class="ex"><span><b>'+esc(x.name)+'</b> · '+esc(desc(x))+'</span><span class="'+(x.status==='approved'?'ok':'mu')+'">'+(x.status==='approved'?'אושר':'ממתין')+'</span>'+(x.uid===me.id?'<button style="color:var(--no)" onclick="quickDel(\''+x.id+'\')">מחיקה</button>':'')+(x.uid===me.id&&x.id!==medit?'<button onclick="openM(\''+k+'\',\''+x.id+'\')">'+(lk&&!mg?'פתח':'עריכה')+'</button>':'')+'</div>'})}
   if(mg)h+=coverPanel(k,list);
   const canForm=!lk||mg;
@@ -363,14 +409,28 @@ async function checkReminders(){
   remBusy=1;
   try{
     for(const r of due){
-      await db.collection('requests').doc(r.id).update({reminded:true});
+      if(!(await claimRem(r.id)))continue;
       const d=Object.assign({},r,{rid:r.id}),an=analyze(d);
-      const text='תזכורת: מחר '+r.name+' – '+desc(r)+' · '+fmtD(r.date);
+      const text='תזכורת למחר: '+r.name+' – '+desc(r)+' · '+fmtD(r.date);
       await db.collection('messages').add({to:boss.id,rid:r.id,text:text,alert:alertText(an),reminder:true,ts:Date.now(),read:false});
       sendMail(boss,d,text,'',true);
     }
   }catch(x){}
   remBusy=0;
+}
+const popSeen=new Set();
+function popups(){
+  if(!me||!db)return;
+  const fresh=msgs.filter(m=>m.to===me.id&&!m.read&&!popSeen.has(m.id));
+  if(!fresh.length)return;
+  fresh.forEach(m=>popSeen.add(m.id));
+  let e=$('#pop');if(!e){e=document.createElement('div');e.id='pop';document.body.appendChild(e)}
+  e.innerHTML='<div class="popc"><b>'+(fresh.some(m=>m.reminder)?'⏰ תזכורת למחר':'🔔 הודעה חדשה')+'</b>'+fresh.slice(0,3).map(m=>'<div class="popt">'+esc(m.text)+(m.alert?'<br><b style="color:var(--no)">⚠ '+esc(m.alert)+'</b>':'')+'</div>').join('')+'<div class="row"><button class="pri" onclick="$(\'#pop\').innerHTML=\'\';setTab(\'inbox\')">פתיחת ההודעות</button><button onclick="$(\'#pop\').innerHTML=\'\'">סגירה</button></div></div>';
+}
+async function claimRem(id){
+  const ref=db.collection('requests').doc(id);
+  if(db.runTransaction)return db.runTransaction(async tx=>{const d=await tx.get(ref);if(!d.exists||d.data().reminded)return false;tx.update(ref,{reminded:true});return true});
+  await ref.update({reminded:true});return true;
 }
 function closeM(){$('#modal').innerHTML=''}
 function quick(){
@@ -438,11 +498,11 @@ async function sendMail(boss,d,text,em,isRem){
       reply_to: MAIL_FROM,
       to_email: MAIL_TO,
       to_name: 'מנהל',
-      start_date: day,
+      start_date: 'יום '+WD[kd(d.date).getDay()]+', '+day,
       day_name: 'יום '+WD[kd(d.date).getDay()],
       full_date: fmtD(d.date),
       end_date: day,
-      subject: (isRem?'תזכורת – ':'')+mp.subject,
+      subject: (isRem?'תזכורת למחר – ':'')+mp.subject,
       message: mp.body,
       request_type: typeDesc,
       type_name: T[d.type],
@@ -452,7 +512,7 @@ async function sendMail(boss,d,text,em,isRem){
       type: typeDesc,
       note: noteText,
       reason: noteText,
-      title: isRem?'תזכורת':'בקשה חדשה לאישור',
+      title: isRem?'תזכורת למחר':'בקשה חדשה לאישור',
       app_url: currentAppUrl // שולח את הקישור הנוכחי הדינמי
     },{publicKey:'p8OrBzEgsDRGI7wL6'});
     
@@ -474,7 +534,7 @@ function inboxView(){
       else if(r.status==='pending'&&me.role==='manager')tail='<div class="row"><button class="pri" onclick="decide(\''+m.rid+'\',true)">אישור</button><button onclick="decide(\''+m.rid+'\',false)" style="color:var(--no)">דחייה</button></div>';
       else if(r.status==='approved')tail='<div class="ok" style="margin-top:6px">הבקשה אושרה</div>';
     }
-    h+='<div class="msg'+(m.read?'':' un')+'"><div>'+(m.reminder?'<b style="color:var(--late)">⏰ תזכורת · </b>':'')+esc(m.text)+'</div>'+(m.alert?'<div class="alt">⚠ '+esc(m.alert)+'</div>':'')+'<small>'+new Date(m.ts).toLocaleString('he-IL',{dateStyle:'short',timeStyle:'short'})+'</small>'+tail+(m.rid&&me.role==='manager'&&reqs.some(x=>x.id===m.rid&&x.status==='pending')?'':'<div class="row"><button style="color:var(--no)" onclick="delMsg(\''+m.id+'\')">מחיקת הודעה</button></div>')+'</div>';
+    h+='<div class="msg'+(m.read?'':' un')+'"><div>'+(m.reminder?'<b style="color:var(--late)">⏰ תזכורת למחר · </b>':'')+esc(m.text)+'</div>'+(m.alert?'<div class="alt">⚠ '+esc(m.alert)+'</div>':'')+'<small>'+new Date(m.ts).toLocaleString('he-IL',{dateStyle:'short',timeStyle:'short'})+'</small>'+tail+(m.rid&&me.role==='manager'&&reqs.some(x=>x.id===m.rid&&x.status==='pending')?'':'<div class="row"><button style="color:var(--no)" onclick="delMsg(\''+m.id+'\')">מחיקת הודעה</button></div>')+'</div>';
   });
   return h+'</div>';
 }
