@@ -224,7 +224,7 @@ async function init(){
 function startData(){
   if(dataOn)return;dataOn=1;
   const timer=setTimeout(()=>{if(!ready){ready=1;render()}},10000),fail=e=>{dbErr=(e&&(e.code||e.message))||"error";ready=1;render()};
-  db.collection('users').onSnapshot(s=>{if(!shSeeded&&(!s.metadata||!s.metadata.fromCache)&&s.docs.length&&!s.docs.some(d=>d.data().shifts)){shSeeded=1;seedShifts(s)}if(FB&&!seeded&&!s.metadata.fromCache){seeded=1;if(!s.docs.length){db.collection('users').doc('manager-aharon').set({name:'אהרן משה',pass:'0852',role:'manager'});db.collection('users').doc('emp-dudu').set({name:'דודו',pass:'4641',role:'employee'})}if(!s.docs.some(d=>d.data().role==='admin'))db.collection('users').doc('admin-dudu').set({name:'דודו מנהל',pass:'3275',role:'admin'})}users=mapDocs(s);clearTimeout(timer);ready=1;
+  db.collection('users').onSnapshot(s=>{if(!shSeeded&&(!s.metadata||!s.metadata.fromCache)&&s.docs.length&&!s.docs.some(d=>d.data().shifts)){shSeeded=1;seedShifts(s)}if(FB&&!seeded&&!s.metadata.fromCache){seeded=1;if(!s.docs.length){db.collection('users').doc('manager-aharon').set({name:'אהרן משה',pass:'0852',role:'manager'});db.collection('users').doc('emp-dudu').set({name:'דודו',pass:'4641',role:'employee'})}if(!s.docs.some(d=>d.data().role==='admin'))db.collection('users').doc('admin-dudu').set({name:'דודו מנהל',pass:'327548',role:'admin'})}users=mapDocs(s);clearTimeout(timer);ready=1;
     if(me===null&&ls.get())me=users.find(u=>u.id===ls.get())||null;
     else if(me)me=users.find(u=>u.id===me.id)||null;
     if(!me)ls.set(null);render()},fail);
@@ -523,7 +523,7 @@ function pwM(){
 }
 async function changePw(){
   const o=$('#po').value,n=$('#pn').value,c=$('#pc').value,e=$('#pe');
-  if(n.length<2){e.textContent='הסיסמה החדשה קצרה מדי';return}
+  if(n.length<4){e.textContent='הסיסמה החדשה קצרה מדי';return}
   if(n!==c){e.textContent='אימות הסיסמה לא תואם';return}
   try{
     if(FB){const cu=auth.currentUser,em=cu.email;await cu.reauthenticateWithCredential(firebase.auth.EmailAuthProvider.credential(em,await sha(em+'|'+o)));await cu.updatePassword(await sha(em+'|'+n))}
