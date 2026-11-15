@@ -523,7 +523,7 @@ function pwM(){
 }
 async function changePw(){
   const o=$('#po').value,n=$('#pn').value,c=$('#pc').value,e=$('#pe');
-  if(n.length<4){e.textContent='הסיסמה החדשה קצרה מדי';return}
+  if(n.length<2){e.textContent='הסיסמה החדשה קצרה מדי';return}
   if(n!==c){e.textContent='אימות הסיסמה לא תואם';return}
   try{
     if(FB){const cu=auth.currentUser,em=cu.email;await cu.reauthenticateWithCredential(firebase.auth.EmailAuthProvider.credential(em,await sha(em+'|'+o)));await cu.updatePassword(await sha(em+'|'+n))}
