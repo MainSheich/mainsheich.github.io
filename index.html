@@ -471,8 +471,9 @@ async function fbLogin(n,p){
 async function legacyMigrate(n,p,h){
   let q=await db.collection('users').get();
   if(q.empty&&n==='דודו מנהל'&&p==='3275'){await db.collection('users').doc('admin-dudu').set({name:'דודו מנהל',pass:'3275',role:'admin'});q=await db.collection('users').get()}
-  const d=q.docs.find(x=>x.data().name===n&&String(x.data().pass)===p);
-  if(!d)throw new Error('bad');
+  const nz=v=>String(v==null?'':v).replace(/[\u200e\u200f\u202a-\u202e\u00a0]/g,' ').replace(/\s+/g,' ').trim();
+  const d=q.docs.find(x=>nz(x.data().name)===nz(n)&&nz(x.data().pass)===nz(p));
+  if(!d)throw new Error('bad: users='+q.size+' nameFound='+q.docs.some(x=>nz(x.data().name)===nz(n))+' project='+FIREBASE_CONFIG.projectId);
   const em='u'+rand()+'@vacations.app',c=await auth.createUserWithEmailAndPassword(em,await sha(em+'|'+p));
   await db.collection('uidmap').doc(c.user.uid).set({userId:d.id,role:d.data().role});
   await db.collection('logins').doc(h).set({email:em,uid:c.user.uid});
