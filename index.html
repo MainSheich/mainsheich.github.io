@@ -479,7 +479,8 @@ async function save(){
 const MAIL_FROM='ab63187881@gmail.com',MAIL_TO='aa63187881@gmail.com';
 function mailParts(d){const day=kd(d.date).toLocaleDateString('he-IL');return{subject:'בקשה מעובד – '+d.name,body:'בקשה מעובד: '+d.name+'\nסוג הבקשה: '+desc(d)+'\nתאריך: '+day+(d.note?'\nסיבה / הערות: '+d.note:'')}}
 function mailFallback(d){const mp=mailParts(d),u='mailto:'+MAIL_TO+'?subject='+encodeURIComponent(mp.subject)+'&body='+encodeURIComponent(mp.body);
-  $('#modal').innerHTML='<div class="ov" onclick="if(event.target===this)closeM()"><div class="md"><h3>הבקשה נשמרה ✓</h3><div class="sub">המייל האוטומטי לא נשלח מהדפדפן. לחצו לפתיחת מייל מוכן למנהל ושלחו אותו.</div><div class="row"><a href="'+u+'" target="_blank" rel="noopener"><button class="pri">פתיחת מייל מוכן למנהל</button></a><button onclick="closeM()">סגירה</button></div></div></div>'}
+  $('#modal').innerHTML='<div class="ov" onclick="if(event.target===this)closeM()"><div class="md"><h3>הבקשה נשמרה ✓</h3><div class="sub">המייל האוטומטי לא נשלח מהדפדפן. לחצו לפתיחת מייל מוכן למנהל ושלחו אותו.</div><div class="mu" dir="ltr" style="font-size:12px;margin-bottom:8px;word-break:break-word">'+esc(lastMailErr)+'</div><div class="row"><a href="'+u+'" target="_blank" rel="noopener"><button class="pri">פתיחת מייל מוכן למנהל</button></a><button onclick="closeM()">סגירה</button></div></div></div>'}
+let lastMailErr='';
 async function sendMail(boss,d,text,em,isRem){
   try{
     const mp=mailParts(d),day=kd(d.date).toLocaleDateString('he-IL');if(!window.emailjs)throw new Error('no emailjs');
@@ -517,7 +518,7 @@ async function sendMail(boss,d,text,em,isRem){
     },{publicKey:'p8OrBzEgsDRGI7wL6'});
     
     if(!isRem)toast('נשלח מייל למנהל · סוג: '+typeDesc+' · הערה: '+noteText);
-  }catch(x){if(!isRem)mailFallback(d)}
+  }catch(x){lastMailErr=((x&&x.status)?x.status+' ':'')+((x&&(x.text||x.message))||String(x));if(!isRem)mailFallback(d)}
 }
 async function delReq(){
   try{await db.collection('requests').doc(medit).delete();closeM()}catch(x){$('#me').textContent='אירעה שגיאה במחיקה'}
