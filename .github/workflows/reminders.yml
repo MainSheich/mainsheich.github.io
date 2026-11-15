@@ -19,7 +19,7 @@ jobs:
       - run: node reminders.mjs
         env:
           EMAILJS_PRIVATE_KEY: ${{ secrets.EMAILJS_PRIVATE_KEY }}
-          APP_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/
+          APP_URL: https://mainsheich.github.io/
           BOT_EMAIL: ${{ secrets.BOT_EMAIL }}
           BOT_PASSWORD: ${{ secrets.BOT_PASSWORD }}
           NOW_ISO: ${{ github.event.inputs.now_iso }}
