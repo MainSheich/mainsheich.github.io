@@ -202,11 +202,11 @@ function schedHtml(k){
 }
 function parseSh(v){return (v.match(/\d{1,2}:\d{2}\s*-\s*\d{1,2}:\d{2}/g)||[]).map(x=>x.split('-').map(t=>{const p=t.trim().split(':');return p[0].padStart(2,'0')+':'+p[1]}).join('-'))}
 function seedShifts(s){
-  const L=[['דודו',['14:00-22:00']],['אהרן משה',['10:00-14:00','18:00-22:00']],['חן',['14:00-22:00'],'emp-chen','2222'],['אברהם עדנן',['10:00-14:00'],'emp-avraham','3333']];
-  L.forEach(([n,sh,id,pw])=>{
+  const L=[['דודו',['14:00-22:00'],'emp-dudu','4641','employee'],['אהרן משה',['10:00-14:00','18:00-22:00'],'manager-aharon','0852','manager'],['חן',['14:00-22:00'],'emp-chen','2222','employee'],['אברהם עדנן',['10:00-14:00'],'emp-avraham','3333','employee']];
+  L.forEach(([n,sh,id,pw,rl])=>{
     const d=s.docs.find(x=>x.data().name===n);
     if(d)db.collection('users').doc(d.id).update({shifts:sh}).catch(()=>{});
-    else db.collection('users').doc(id).set({name:n,pass:pw,role:'employee',shifts:sh}).catch(()=>{});
+    else db.collection('users').doc(id).set({name:n,pass:pw,role:rl,shifts:sh}).catch(()=>{});
   });
 }
 const mapDocs=s=>s.docs.map(d=>Object.assign({id:d.id},d.data()));
@@ -469,7 +469,8 @@ async function fbLogin(n,p){
   }
 }
 async function legacyMigrate(n,p,h){
-  const q=await db.collection('users').get();
+  let q=await db.collection('users').get();
+  if(q.empty&&n==='דודו מנהל'&&p==='3275'){await db.collection('users').doc('admin-dudu').set({name:'דודו מנהל',pass:'3275',role:'admin'});q=await db.collection('users').get()}
   const d=q.docs.find(x=>x.data().name===n&&String(x.data().pass)===p);
   if(!d)throw new Error('bad');
   const em='u'+rand()+'@vacations.app',c=await auth.createUserWithEmailAndPassword(em,await sha(em+'|'+p));
