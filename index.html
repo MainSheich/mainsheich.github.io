@@ -225,7 +225,7 @@ async function init(){
   try{db=window.claude?await claude.use('db'):null}catch(e){db=null}
   if(!db&&window.firebase&&FIREBASE_CONFIG.projectId&&FIREBASE_CONFIG.projectId!=='PASTE'){try{firebase.initializeApp(FIREBASE_CONFIG);db=firebase.firestore();try{db.enablePersistence({synchronizeTabs:true}).catch(()=>{})}catch(e){}FB=1}catch(e){db=null}}
   if(!db){render();return}
-  if(FB){auth=firebase.auth();ready=1;render();auth.onAuthStateChanged(async u=>{if(!u)return;await resolveSession(u);startData()});return}
+  if(FB){auth=firebase.auth();if(!ls.get())ready=1;render();setTimeout(()=>{if(!ready){ready=1;render()}},8000);auth.onAuthStateChanged(async u=>{if(!u){if(!ready||me){ready=1;me=null;ls.set(null);render()}return}let mp=null;try{mp=localStorage.getItem('vm_map_'+u.uid)}catch(_){}if(mp){ls.set(mp);startData();resolveSession(u,true);return}await resolveSession(u);if(ls.get())startData()});return}
   startData();
 }
 function startData(){
@@ -386,33 +386,42 @@ function openM(k,eid){
   $('#modal').innerHTML=h;
   if(mt==='late'||mt==='early')quick();
 }
+function gapsOf(k){
+  const day=users.map(u=>({u:u,sh:shOf(u,k)})).filter(x=>x.sh.length);if(!day.length)return[];
+  const all=[].concat(...day.map(x=>x.sh)),lo=Math.min(...all.map(x=>x[0])),hi=Math.max(...all.map(x=>x[1])),out=[];
+  covSegs(k,day,lo,hi).filter(x=>x.have<x.need).forEach(x=>{const l=out[out.length-1];if(l&&l.b===x.a){l.b=x.b;l.t.push(x)}else out.push({a:x.a,b:x.b,t:[x]})});
+  return out;
+}
 function coverPanel(k,list){
-  const rows=list.map(r=>{const u=users.find(x=>x.id===r.uid),ab=u?absOf(r,u):[];return ab.length?'<div class="ex"><span><b>'+esc(r.name)+'</b> · חסר '+rng(ab)+'</span><button onclick="coverM(\''+r.id+'\')">מילוי חסר</button></div>':''}).join('');
+  const gp=gapsOf(k),gRow=gp.length?'<div class="ex"><span><b>חוסר בכיסוי</b> · '+gp.map(g=>g.t.map(x=>m2t(x.a)+'–'+m2t(x.b)+' ('+x.have+' מתוך '+x.need+')').join(', ')).join(', ')+'</span><button onclick="coverM(\'_gap:'+k+'\')">מילוי חסר</button></div>':'';
+  const rows=gRow+list.map(r=>{const u=users.find(x=>x.id===r.uid),ab=u?absOf(r,u):[];return ab.length?'<div class="ex"><span><b>'+esc(r.name)+'</b> · חסר '+rng(ab)+'</span><button onclick="coverM(\''+r.id+'\')">מילוי חסר</button></div>':''}).join('');
   const cv=covers.filter(c=>c.date===k).map(c=>'<div class="ex"><span>↪ <b>'+esc(c.name)+'</b>'+(c.uid?'':' (זמני)')+' · '+c.from+'–'+c.to+'</span><button style="color:var(--no)" onclick="delCover(\''+c.id+'\')">הסרה</button></div>').join('');
   return (rows||cv)?'<label>מילוי חסר</label>'+rows+cv:'';
 }
 let cvMode='full',cvReq='';
 function coverM(rid){
-  const r=reqs.find(x=>x.id===rid);if(!r)return;cvReq=rid;cvMode='full';
-  const u0=users.find(x=>x.id===r.uid),ab=u0?absOf(r,u0):[];
+  const gk=rid.indexOf('_gap:')===0?rid.slice(5):'';
+  const r=gk?{id:'',uid:'',date:gk,name:'חוסר בכיסוי'}:reqs.find(x=>x.id===rid);if(!r)return;cvReq=rid;cvMode='full';
+  const u0=users.find(x=>x.id===r.uid),ab=gk?gapsOf(gk).map(g=>[g.a,g.b]):(u0?absOf(r,u0):[]);
   const opts=users.filter(u=>u.role!=='admin'&&u.id!==r.uid).map(u=>'<option value="'+u.id+'">'+esc(u.name)+'</option>').join('');
-  $('#modal').innerHTML='<div class="ov" onclick="if(event.target===this)closeM()"><div class="md"><h3>מילוי חסר</h3><div class="sub">'+esc(r.name)+' · '+esc(desc(r))+' · חסר '+rng(ab)+'</div><label>מי מכסה?</label><select id="cp" onchange="$(\'#ctw\').style.display=this.value===\'_t\'?\'block\':\'none\'">'+opts+'<option value="_t">עובד זמני</option></select><div id="ctw" style="display:none"><label>שם העובד הזמני</label><input id="ct"></div><div class="tiles" style="grid-template-columns:1fr 1fr"><button class="tile on vac" id="cm1" onclick="cvSet(\'full\')">כיסוי מלא</button><button class="tile" id="cm2" onclick="cvSet(\'hours\')">לפי שעות</button></div><div id="chw" style="display:none"><div class="row"><div style="flex:1"><label>משעה</label><input id="cf" type="time"></div><div style="flex:1"><label>עד שעה</label><input id="cto" type="time"></div></div></div><div class="err" id="ce"></div><div class="row"><button class="pri" onclick="saveCover()">הוספה</button><button onclick="closeM()">ביטול</button></div></div></div>';
+  $('#modal').innerHTML='<div class="ov" onclick="if(event.target===this)closeM()"><div class="md"><h3>מילוי חסר</h3><div class="sub">'+(gk?'חוסר בכיסוי · '+esc(fmtD(gk)):esc(r.name)+' · '+esc(desc(r)))+' · חסר '+rng(ab)+'</div><label>מי מכסה?</label><select id="cp" onchange="$(\'#ctw\').style.display=this.value===\'_t\'?\'block\':\'none\'">'+opts+'<option value="_t">עובד זמני</option></select><div id="ctw" style="display:none"><label>שם העובד הזמני</label><input id="ct"></div><div class="tiles" style="grid-template-columns:1fr 1fr"><button class="tile on vac" id="cm1" onclick="cvSet(\'full\')">כיסוי מלא</button><button class="tile" id="cm2" onclick="cvSet(\'hours\')">לפי שעות</button></div><div id="chw" style="display:none"><div class="row"><div style="flex:1"><label>משעה</label><input id="cf" type="time"></div><div style="flex:1"><label>עד שעה</label><input id="cto" type="time"></div></div></div><div class="err" id="ce"></div><div class="row"><button class="pri" onclick="saveCover()">הוספה</button><button onclick="closeM()">ביטול</button></div></div></div>';
 }
 function cvSet(m){
   cvMode=m;$('#cm1').className='tile'+(m==='full'?' on vac':'');$('#cm2').className='tile'+(m==='hours'?' on vac':'');
   $('#chw').style.display=m==='hours'?'block':'none';
 }
 async function saveCover(){
-  const r=reqs.find(x=>x.id===cvReq),e=$('#ce');if(!r)return;
+  const gk=cvReq.indexOf('_gap:')===0?cvReq.slice(5):'';
+  const r=gk?{id:'',uid:'',date:gk,name:'חוסר בכיסוי'}:reqs.find(x=>x.id===cvReq),e=$('#ce');if(!r)return;
   const sel=$('#cp').value,temp=sel==='_t',nm=temp?$('#ct').value.trim():(users.find(x=>x.id===sel)||{}).name;
   if(!nm){e.textContent='יש לרשום שם לעובד הזמני';return}
   const u0=users.find(x=>x.id===r.uid);let rs=[];
-  if(cvMode==='full')rs=u0?absOf(r,u0):[];
+  if(cvMode==='full')rs=gk?gapsOf(gk).map(g=>[g.a,g.b]):(u0?absOf(r,u0):[]);
   else{const a=$('#cf').value,b=$('#cto').value;if(!a||!b||tm2(b)<=tm2(a)){e.textContent='יש לבחור טווח שעות תקין';return}rs=[[tm2(a),tm2(b)]]}
   if(!rs.length){e.textContent='אין שעות חסרות לכיסוי';return}
   try{
     for(const x of rs)await db.collection('covers').add({date:r.date,req:r.id,name:nm,uid:temp?'':sel,from:m2t(x[0]),to:m2t(x[1]),ts:Date.now()});
-    if(!temp)await db.collection('messages').add({to:sel,text:'הוקצית לכסות את '+r.name+' · '+fmtD(r.date)+' · '+rng(rs),ts:Date.now(),read:false});
+    if(!temp)await db.collection('messages').add({to:sel,text:(gk?'הוקצית למלא חוסר בכיסוי':'הוקצית לכסות את '+r.name)+' · '+fmtD(r.date)+' · '+rng(rs),ts:Date.now(),read:false});
     closeM();toast('המילוי נוסף');
   }catch(x){e.textContent='אירעה שגיאה, נסו שוב'}
 }
@@ -454,13 +463,15 @@ async function claimRem(id){
 }
 const sha=async s=>[...new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(s)))].map(b=>b.toString(16).padStart(2,'0')).join('');
 const rand=()=>[...crypto.getRandomValues(new Uint8Array(8))].map(b=>b.toString(16).padStart(2,'0')).join('');
-async function resolveSession(u){
+async function resolveSession(u,bg){
   let m=null;
   for(let i=0;i<8&&!m;i++){
     try{const d=await db.collection('uidmap').doc(u.uid).get();if(d.exists)m=d.data()}catch(e){}
     if(!m)await new Promise(r=>setTimeout(r,500));
   }
-  if(!m){await auth.signOut();const e=$('#le');if(e)e.textContent='החשבון לא הוגדר במערכת. פנו למנהל האתר';return}
+  if(!m){if(bg)return;try{localStorage.removeItem('vm_map_'+u.uid)}catch(_){}await auth.signOut();const e=$('#le');if(e)e.textContent='החשבון לא הוגדר במערכת. פנו למנהל האתר';return}
+  try{localStorage.setItem('vm_map_'+u.uid,m.userId)}catch(_){}
+  if(bg&&ls.get()!==m.userId){ls.set(m.userId);location.reload();return}
   ls.set(m.userId);
 }
 async function fbLogin(n,p){
