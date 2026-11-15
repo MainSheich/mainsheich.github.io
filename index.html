@@ -98,7 +98,8 @@ select{font:inherit;width:100%;padding:11px 12px;border:1px solid var(--bd);bord
 <div id="modal"></div><div id="toast"></div>
 <script>
 const $=s=>document.querySelector(s);
-const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))
+  ;
 const T={vac:'חופשה',late:'הגעה מאוחרת',early:'יציאה מוקדמת'};
 const RL={admin:'מנהל אתר',manager:'מנהל מאשר',employee:'עובד'};
 const IC={vac:'🌴',late:'⏰',early:'🏃'};
@@ -465,7 +466,7 @@ async function fbLogin(n,p){
     const em=lg.data().email;
     await auth.signInWithEmailAndPassword(em,await sha(em+'|'+p));
   }catch(x){
-    e.textContent=(x&&x.code==='auth/too-many-requests')?'יותר מדי ניסיונות. נסו שוב בעוד כמה דקות':'שם משתמש או סיסמה שגויים';
+    e.textContent=(x&&x.code==='auth/too-many-requests')?'יותר מדי ניסיונות. נסו שוב בעוד כמה דקות':'שם משתמש או סיסמה שגויים'+((x&&(x.code||x.message))?' ('+(x.code||x.message)+')':'');
   }
 }
 async function legacyMigrate(n,p,h){
@@ -518,11 +519,11 @@ async function makeBot(){
   }catch(x){toast('אירעה שגיאה ביצירת החשבון')}
 }
 function pwM(){
-  $('#modal').innerHTML='<div class="ov" onclick="if(event.target===this)closeM()"><div class="md"><h3>החלפת סיסמה</h3><label>סיסמה נוכחית</label><input id="po" type="password"><label>סיסמה חדשה (לפחות '+(FB?6:4)+' תווים)</label><input id="pn" type="password"><label>אימות סיסמה חדשה</label><input id="pc" type="password"><div class="err" id="pe"></div><div class="row"><button class="pri" onclick="changePw()">שמירה</button><button onclick="closeM()">ביטול</button></div></div></div>';
+  $('#modal').innerHTML='<div class="ov" onclick="if(event.target===this)closeM()"><div class="md"><h3>החלפת סיסמה</h3><label>סיסמה נוכחית</label><input id="po" type="password"><label>סיסמה חדשה (לפחות '+4+' תווים)</label><input id="pn" type="password"><label>אימות סיסמה חדשה</label><input id="pc" type="password"><div class="err" id="pe"></div><div class="row"><button class="pri" onclick="changePw()">שמירה</button><button onclick="closeM()">ביטול</button></div></div></div>';
 }
 async function changePw(){
   const o=$('#po').value,n=$('#pn').value,c=$('#pc').value,e=$('#pe');
-  if(n.length<(FB?6:4)){e.textContent='הסיסמה החדשה קצרה מדי';return}
+  if(n.length<4){e.textContent='הסיסמה החדשה קצרה מדי';return}
   if(n!==c){e.textContent='אימות הסיסמה לא תואם';return}
   try{
     if(FB){const cu=auth.currentUser,em=cu.email;await cu.reauthenticateWithCredential(firebase.auth.EmailAuthProvider.credential(em,await sha(em+'|'+o)));await cu.updatePassword(await sha(em+'|'+n))}
