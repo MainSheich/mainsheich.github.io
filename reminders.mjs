@@ -2,7 +2,7 @@
 const KEY='AIzaSyA5-ySBUkH4ZO9ZqMsc3MCgrbo_17u8HfA',PROJECT='employee-vacations-3a755';
 const BASE='https://firestore.googleapis.com/v1/projects/'+PROJECT+'/databases/(default)/documents';
 const MAIL_FROM='ab63187881@gmail.com',MAIL_TO='aa63187881@gmail.com';
-const EJ={service:'service_lnwmdw9',template:'template_mk2vhtr',publicKey:'585BjCGsxRow7zptu',privateKey:process.env.EMAILJS_PRIVATE_KEY};
+const EJ={service:'service_lnwmdw9',template:'template_mk2vhtr',publicKey:'edHZJcWruFB4Ulcgh',privateKey:process.env.EMAILJS_PRIVATE_KEY};
 const APP_URL=process.env.APP_URL||'';
 let AUTH={};
 async function signIn(){
@@ -20,7 +20,10 @@ const desc=r=>T[r.type]+(r.time?' ('+(r.type==='late'?'מגיע ב־':'יוצא 
 let users=[],reqs=[],covers=[];
 const tm2=t=>{const p=t.split(':').map(Number);return p[0]*60+p[1]};
 const m2t=m=>String(Math.floor(m/60)).padStart(2,'0')+':'+String(m%60).padStart(2,'0');
-const shOf=(u,k)=>kd(k).getDay()<=4?(u.shifts||[]).map(x=>x.split('-').map(tm2)):[];
+const ALT0={'חן':'2026-11-10'};
+const altOf=u=>u.alt!==undefined?(u.alt||''):(ALT0[u.name]||'');
+const altOn=(u,k)=>{const a=altOf(u);if(!a)return true;const w=Math.floor(Math.round((kd(k)-kd(a))/864e5)/7);return ((w%2)+2)%2===0};
+const shOf=(u,k)=>kd(k).getDay()<=4&&altOn(u,k)?(u.shifts||[]).map(x=>x.split('-').map(tm2)):[];
 const rng=l=>l.map(x=>m2t(x[0])+'–'+m2t(x[1])).join(' ו־');
 const fromTo=l=>l.map(x=>'משעה '+m2t(x[0])+' עד '+m2t(x[1])).join(' וגם ');
 function absOf(r,u){
