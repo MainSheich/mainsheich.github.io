@@ -8,6 +8,10 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="חופשות">
+<link rel="preconnect" href="https://firestore.googleapis.com">
+<link rel="preconnect" href="https://identitytoolkit.googleapis.com">
+<link rel="preconnect" href="https://api.emailjs.com">
+<link rel="preconnect" href="https://www.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;500;700&display=swap" rel="stylesheet">
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
@@ -215,7 +219,7 @@ function toast(t){const e=$('#toast');e.textContent=t;e.classList.add('on');setT
 
 async function init(){
   try{db=window.claude?await claude.use('db'):null}catch(e){db=null}
-  if(!db&&window.firebase&&FIREBASE_CONFIG.projectId&&FIREBASE_CONFIG.projectId!=='PASTE'){try{firebase.initializeApp(FIREBASE_CONFIG);db=firebase.firestore();FB=1}catch(e){db=null}}
+  if(!db&&window.firebase&&FIREBASE_CONFIG.projectId&&FIREBASE_CONFIG.projectId!=='PASTE'){try{firebase.initializeApp(FIREBASE_CONFIG);db=firebase.firestore();try{db.enablePersistence({synchronizeTabs:true}).catch(()=>{})}catch(e){}FB=1}catch(e){db=null}}
   if(!db){render();return}
   if(FB){auth=firebase.auth();ready=1;render();auth.onAuthStateChanged(async u=>{if(!u)return;await resolveSession(u);startData()});return}
   startData();
@@ -460,10 +464,17 @@ async function fbLogin(n,p){
   if(!n||!p){e.textContent='יש למלא שם משתמש וסיסמה';return}
   e.textContent='מתחבר…';
   try{
-    const h=await sha(n),lg=await db.collection('logins').doc(h).get();
+    const h=await sha(n);
+    let cached=null;try{cached=localStorage.getItem('vm_em_'+h)}catch(_){}
+    if(cached){
+      try{await auth.signInWithEmailAndPassword(cached,await sha(cached+'|'+p));return}
+      catch(x){if(x&&x.code==='auth/too-many-requests')throw x}
+    }
+    const lg=await db.collection('logins').doc(h).get();
     if(!lg.exists){await legacyMigrate(n,p,h);return}
     const em=lg.data().email;
     await auth.signInWithEmailAndPassword(em,await sha(em+'|'+p));
+    try{localStorage.setItem('vm_em_'+h,em)}catch(_){}
   }catch(x){
     e.textContent=(x&&x.code==='auth/too-many-requests')?'יותר מדי ניסיונות. נסו שוב בעוד כמה דקות':'שם משתמש או סיסמה שגויים'+((x&&(x.code||x.message))?' ('+(x.code||x.message)+')':'');
   }
@@ -587,13 +598,15 @@ async function save(){
     if(medit)await db.collection('requests').doc(medit).set(d);
     else rid=(await db.collection('requests').add(d)).id;
     const boss=users.find(u=>u.role==='manager');
-    if(!mg&&boss){
-      const text=me.name+' '+(medit?'עדכן/ה בקשה':'הגיש/ה בקשה')+': '+desc(d)+' · '+fmtD(d.date);
-      d.rid=rid;const an=analyze(d);await db.collection('messages').add({to:boss.id,rid:rid,text:text,alert:alertText(an),ts:Date.now(),read:false});
-      
-      sendMail(boss,d,text,em);
-    }
+    const wasEdit=!!medit;
     closeM();
+    if(!mg&&boss){
+      const text=me.name+' '+(wasEdit?'עדכן/ה בקשה':'הגיש/ה בקשה')+': '+desc(d)+' · '+fmtD(d.date);
+      d.rid=rid;
+      sendMail(boss,d,text,em);
+      const an=analyze(d);
+      db.collection('messages').add({to:boss.id,rid:rid,text:text,alert:alertText(an),ts:Date.now(),read:false}).catch(()=>{});
+    }
   }catch(x){e.textContent='אירעה שגיאה בשמירה, נסו שוב'}
 }
 const MAIL_FROM='ab63187881@gmail.com',MAIL_TO='aa63187881@gmail.com';
