@@ -129,7 +129,11 @@ const ls={get(){try{return localStorage.getItem('vm_uid')}catch(e){return null}}
 let shSeeded=0;
 const tm2=t=>{const p=t.split(':').map(Number);return p[0]*60+p[1]};
 const m2t=m=>String(Math.floor(m/60)).padStart(2,'0')+':'+String(m%60).padStart(2,'0');
-const shOf=(u,k)=>kd(k).getDay()<=4?(u.shifts||[]).map(x=>x.split('-').map(tm2)):[];
+// סבב שבוע כן / שבוע לא. התאריך הוא יום שלישי שפותח שבוע עבודה. השבוע מיום שלישי עד יום שני
+const ALT0={'חן':'2026-11-10'};
+const altOf=u=>u.alt!==undefined?(u.alt||''):(ALT0[u.name]||'');
+const altOn=(u,k)=>{const a=altOf(u);if(!a)return true;const w=Math.floor(Math.round((kd(k)-kd(a))/864e5)/7);return ((w%2)+2)%2===0};
+const shOf=(u,k)=>kd(k).getDay()<=4&&altOn(u,k)?(u.shifts||[]).map(x=>x.split('-').map(tm2)):[];
 const rng=l=>l.map(x=>m2t(x[0])+'–'+m2t(x[1])).join(' ו־');
 const fromTo=l=>l.map(x=>'משעה '+m2t(x[0])+' עד '+m2t(x[1])).join(' וגם ');
 function absOf(r,u){
@@ -648,7 +652,7 @@ async function sendMail(boss,d,text,em,isRem){
       reason: noteText,
       title: isRem?'תזכורת למחר':'בקשה חדשה לאישור',
       app_url: currentAppUrl // שולח את הקישור הנוכחי הדינמי
-    },{publicKey:'585BjCGsxRow7zptu'});
+    },{publicKey:'edHZJcWruFB4Ulcgh'});
     
     if(!isRem)toast('נשלח מייל למנהל · סוג: '+typeDesc+' · הערה: '+noteText);
   }catch(x){lastMailErr=((x&&x.status)?x.status+' ':'')+((x&&(x.text||x.message))||String(x));if(!isRem)mailFallback(d)}
@@ -693,9 +697,28 @@ async function lockRange(on){
   while(d<=end&&ks.length<92){ks.push(key(d.getFullYear(),d.getMonth(),d.getDate()));d=at(d.getFullYear(),d.getMonth(),d.getDate()+1)}
   try{for(const k of ks){if(on)await db.collection('locks').doc(k).set({date:k,ts:Date.now()});else if(isLocked(k))await db.collection('locks').doc(k).delete()}e.textContent='';toast(on?'הימים ננעלו':'הנעילה שוחררה')}catch(x){e.textContent='אירעה שגיאה, נסו שוב'}
 }
+function altSection(){
+  const tk=todayK;
+  const list=users.filter(u=>u.role!=='admin'&&(u.shifts||[]).length).sort((a,b)=>a.name.localeCompare(b.name,'he'));
+  let h='<b>סבב שבוע כן / שבוע לא</b><div class="sub">לעובד שעובד שבוע אחד ולא עובד בשבוע שאחריו. בחרו את היום הראשון של אחד משבועות העבודה שלו. מאותו יום הוא עובד 7 ימים, ואז 7 ימים לא, וכך הלאה. בשבועות החופש הוא לא ייספר במשמרות ובחוסרים</div>';
+  if(!list.length)return h+'<div class="mu">אין עובדים עם שעות משמרת</div><div style="height:22px"></div>';
+  list.forEach(u=>{
+    const a=altOf(u),st=a?(altOn(u,tk)?'בסבב · השבוע עובד/ת':'בסבב · השבוע לא עובד/ת'):'עובד/ת כל שבוע';
+    h+='<div class="ur" style="flex-wrap:wrap"><span><b>'+esc(u.name)+'</b> <span class="mu">· '+st+'</span></span><span class="row" style="margin:0;align-items:center"><input type="date" id="alt_'+u.id+'" value="'+esc(a)+'" style="width:auto;margin:0"><button class="pri" onclick="saveAlt(\''+u.id+'\')">שמירה</button>'+(a?'<button onclick="clearAlt(\''+u.id+'\')">ביטול סבב</button>':'')+'</span></div>';
+  });
+  return h+'<div class="err" id="ale"></div><div style="height:22px"></div>';
+}
+async function saveAlt(id){
+  const v=$('#alt_'+id).value,e=$('#ale');
+  if(!v){e.textContent='יש לבחור תאריך שבו מתחיל שבוע עבודה';return}
+  try{await db.collection('users').doc(id).update({alt:v});e.textContent='';toast('הסבב נשמר')}catch(x){e.textContent='אירעה שגיאה בשמירה, נסו שוב'}
+}
+async function clearAlt(id){
+  try{await db.collection('users').doc(id).update({alt:''});$('#ale').textContent='';toast('העובד חזר לעבוד כל שבוע')}catch(x){$('#ale').textContent='אירעה שגיאה, נסו שוב'}
+}
 function staffView(){
   const adm=me.role==='admin';
-  let h='<div class="glass" id="sf"><b>נעילת ימים</b><div class="sub">בחרו תאריך או טווח תאריכים. בימים נעולים לא ניתן להגיש בקשות חדשות (עד 3 חודשים בכל פעולה)</div><div class="row"><div style="flex:1;min-width:130px"><label>מתאריך</label><input id="lf" type="date"></div><div style="flex:1;min-width:130px"><label>עד תאריך</label><input id="lt" type="date"></div></div><div class="err" id="le2"></div><div class="row" style="margin-bottom:8px"><button class="pri" onclick="lockRange(true)">🔒 נעילה</button><button onclick="lockRange(false)">🔓 שחרור</button></div>'+lockList()+'<div style="height:22px"></div>';
+  let h='<div class="glass" id="sf"><b>נעילת ימים</b><div class="sub">בחרו תאריך או טווח תאריכים. בימים נעולים לא ניתן להגיש בקשות חדשות (עד 3 חודשים בכל פעולה)</div><div class="row"><div style="flex:1;min-width:130px"><label>מתאריך</label><input id="lf" type="date"></div><div style="flex:1;min-width:130px"><label>עד תאריך</label><input id="lt" type="date"></div></div><div class="err" id="le2"></div><div class="row" style="margin-bottom:8px"><button class="pri" onclick="lockRange(true)">🔒 נעילה</button><button onclick="lockRange(false)">🔓 שחרור</button></div>'+lockList()+'<div style="height:22px"></div>'+altSection();
   if(adm){
     h+=(FB?statusBanner():'');
     h+='<b>הוספת עובד</b><div style="height:8px"></div><label>שם משתמש</label><input id="sn"><label>סיסמה</label><input id="sp"><div class="err" id="se"></div><button class="pri" onclick="addU()">הוספת עובד</button><div style="height:22px"></div><b>משתמשים</b><div class="sub">המנהל המאשר מקבל ומאשר את כל בקשות העובדים</div>';
