@@ -159,6 +159,12 @@ select{font:inherit;width:100%;padding:11px 12px;border:1px solid var(--bd);bord
 .hs-a.up{background:color-mix(in srgb,var(--ac) 12%,transparent);color:var(--ac)}
 .hs-a.no{background:color-mix(in srgb,var(--no) 12%,transparent);color:var(--no)}
 .hs-b{flex:1;min-width:0}.hs-m{font-size:12px;margin-top:2px}
+.hsw{margin:0 0 12px;display:flex;width:fit-content;max-width:100%}
+.hs-f{background:color-mix(in srgb,var(--no) 5%,transparent);border-radius:10px}
+.acc-sum{display:flex;gap:14px;flex-wrap:wrap;font-size:13px;margin:4px 0 10px;padding:10px 12px;border-radius:12px;background:color-mix(in srgb,var(--ac) 6%,transparent)}
+.acc-sum .bad{color:var(--no)}
+.acc-wp{font-size:11px;padding:1px 8px;border-radius:999px;background:color-mix(in srgb,var(--late) 16%,transparent);color:var(--late)}
+.acc-unk{font-size:11px;padding:1px 8px;border-radius:999px;background:color-mix(in srgb,var(--no) 14%,transparent);color:var(--no)}
 .cl-st{font-size:12px;padding:3px 10px;border-radius:999px;flex:none}
 .cl-st.ok{background:color-mix(in srgb,var(--ok) 14%,transparent);color:var(--ok)}
 .cl-st.pd{border:1px dashed var(--mu);color:var(--mu)}
@@ -314,17 +320,33 @@ async function init(){
   if(FB){auth=firebase.auth();if(!ls.get())ready=1;render();setTimeout(()=>{if(!ready){ready=1;render()}},8000);auth.onAuthStateChanged(async u=>{if(!u){if(!ready||me){ready=1;me=null;ls.set(null);render()}return}let mp=null;try{mp=localStorage.getItem('vm_map_'+u.uid)}catch(_){}if(mp){ls.set(mp);startData();resolveSession(u,true);return}await resolveSession(u);if(ls.get())startData()});return}
   startData();
 }
+let unsubs=[],dRetry=0,dRetrying=0,acc=[],accOn=0,hv='req',accSeen=0,visitLogged=0;
+try{accSeen=+localStorage.getItem('vm_acc_seen')||0}catch(_){}
+let geoP=null;
+function geo(){
+  if(!geoP)geoP=(async()=>{try{const c=new AbortController(),t=setTimeout(()=>c.abort(),3000);const r=await fetch('https://get.geojs.io/v1/ip/geo.json',{signal:c.signal});clearTimeout(t);if(!r.ok)return{};const j=await r.json();return{ip:String(j.ip||'').slice(0,45),city:String(j.city||'').slice(0,60),country:String(j.country||'').slice(0,60)}}catch(_){return{}}})();
+  return geoP;
+}
+async function logAcc(kind,name){try{if(!db)return;const g=await geo();await db.collection('access').add(Object.assign({kind:kind,name:String(name||'').slice(0,60),dev:devName(),ts:Date.now()},g))}catch(_){}}
+function startAcc(){if(accOn||!me||me.role!=='admin')return;accOn=1;unsubs.push(db.collection('access').orderBy('ts','desc').limit(300).onSnapshot(s=>{acc=mapDocs(s);render()},()=>{}))}
+function stopData(){unsubs.forEach(u=>{try{u&&u()}catch(_){}});unsubs=[];dataOn=0;accOn=0}
 function startData(){
-  if(dataOn)return;dataOn=1;
-  const timer=setTimeout(()=>{if(!ready){ready=1;render()}},10000),fail=e=>{dbErr=(e&&(e.code||e.message))||"error";ready=1;render()};
-  db.collection('users').onSnapshot(s=>{if(!shSeeded&&(!s.metadata||!s.metadata.fromCache)&&s.docs.length&&!s.docs.some(d=>d.data().shifts)){shSeeded=1;seedShifts(s)}if(FB&&!seeded&&!s.metadata.fromCache){seeded=1;if(!s.docs.length){db.collection('users').doc('manager-aharon').set({name:'אהרן משה',pass:'',role:'manager'});db.collection('users').doc('emp-dudu').set({name:'דודו',pass:'',role:'employee'})}if(!s.docs.some(d=>d.data().role==='admin'))db.collection('users').doc('admin-dudu').set({name:'דודו מנהל',pass:'',role:'admin'})}users=mapDocs(s);clearTimeout(timer);ready=1;
+  if(dataOn)return;dataOn=1;dRetrying=0;
+  const timer=setTimeout(()=>{if(!ready){ready=1;render()}},10000),fail=e=>{
+    const c=(e&&(e.code||e.message))||"error";
+    if(FB&&c==='permission-denied'){
+      if(!auth||!auth.currentUser||!ls.get())return; // signing out: ignore
+      if(dRetry<4){if(dRetrying)return;dRetrying=1;dRetry++;stopData();setTimeout(()=>{if(auth.currentUser&&ls.get())startData()},600*dRetry);return}
+    }
+    dbErr=c;ready=1;render()};
+  unsubs.push(db.collection('users').onSnapshot(s=>{if(!shSeeded&&(!s.metadata||!s.metadata.fromCache)&&s.docs.length&&!s.docs.some(d=>d.data().shifts)){shSeeded=1;seedShifts(s)}if(FB&&!seeded&&!s.metadata.fromCache){seeded=1;if(!s.docs.length){db.collection('users').doc('manager-aharon').set({name:'אהרן משה',pass:'',role:'manager'});db.collection('users').doc('emp-dudu').set({name:'דודו',pass:'',role:'employee'})}if(!s.docs.some(d=>d.data().role==='admin'))db.collection('users').doc('admin-dudu').set({name:'דודו מנהל',pass:'',role:'admin'})}users=mapDocs(s);clearTimeout(timer);ready=1;
     if(me===null&&ls.get())me=users.find(u=>u.id===ls.get())||null;
     else if(me)me=users.find(u=>u.id===me.id)||null;
-    if(!me)ls.set(null);render()},fail);
-  db.collection('requests').onSnapshot(s=>{reqs=mapDocs(s);render()},fail);
-  (FB?db.collection('messages').where('to','==',ls.get()):db.collection('messages')).onSnapshot(s=>{msgs=mapDocs(s);render()},fail);
-  db.collection('locks').onSnapshot(s=>{locks=mapDocs(s);render()},fail);
-  db.collection('covers').onSnapshot(s=>{covers=mapDocs(s);render()},fail);
+    if(!me)ls.set(null);dRetry=0;startAcc();render()},fail));
+  unsubs.push(db.collection('requests').onSnapshot(s=>{reqs=mapDocs(s);render()},fail));
+  unsubs.push((FB?db.collection('messages').where('to','==',ls.get()):db.collection('messages')).onSnapshot(s=>{msgs=mapDocs(s);render()},fail));
+  unsubs.push(db.collection('locks').onSnapshot(s=>{locks=mapDocs(s);render()},fail));
+  unsubs.push(db.collection('covers').onSnapshot(s=>{covers=mapDocs(s);render()},fail));
 }
 function render(){
   const root=$('#app');
@@ -337,6 +359,7 @@ function render(){
 }
 function loginView(){
   view='login';
+  if(!visitLogged){visitLogged=1;let v=null;try{v=sessionStorage.getItem('vm_v');sessionStorage.setItem('vm_v','1')}catch(_){}if(!v)logAcc('visit','')}
   $('#app').innerHTML='<div class="glass login"><h1 class="brand">ניהול חופשות</h1><div class="sub">התחברו עם שם משתמש וסיסמה</div><label>שם משתמש</label><input id="lu" autocomplete="username"><label>סיסמה</label><input id="lp" type="password" autocomplete="current-password"><div class="err" id="le"></div><button class="pri" style="width:100%" onclick="login()">כניסה</button></div>';
   $('#lp').addEventListener('keydown',e=>{if(e.key==='Enter')login()});
   $('#lu').addEventListener('keydown',e=>{if(e.key==='Enter')$('#lp').focus()});
@@ -345,10 +368,10 @@ function login(){
   const n=$('#lu').value.trim(),p=$('#lp').value.trim();
   if(FB){fbLogin(n,p);return}
   const u=users.find(x=>x.name===n&&String(x.pass)===p);
-  if(!u){$('#le').textContent=users.length?'שם משתמש או סיסמה שגויים':'אין עדיין משתמשים במערכת';return}
-  me=u;ls.set(u.id);tab='cal';render();
+  if(!u){logAcc('fail',n);$('#le').textContent=users.length?'שם משתמש או סיסמה שגויים':'אין עדיין משתמשים במערכת';return}
+  logAcc('ok',n);me=u;ls.set(u.id);tab='cal';render();
 }
-function logout(){ls.set(null);if(FB){auth.signOut().then(()=>location.reload());return}me=null;view='';armed='';render()}
+function logout(){if(FB)stopData();ls.set(null);if(FB){auth.signOut().then(()=>location.reload());return}me=null;view='';armed='';render()}
 function setTab(t){
   tab=t;armed='';
   if(t==='inbox')msgs.filter(m=>m.to===me.id&&!m.read).forEach(m=>db.collection('messages').doc(m.id).update({read:true}).catch(()=>{}));
@@ -423,7 +446,7 @@ let HM=hStart(new Date(tm.getFullYear(),tm.getMonth(),tm.getDate(),12));
 function appView(){
   const mg=me.role==='manager'||me.role==='admin',un=msgs.filter(m=>m.to===me.id&&!m.read&&m.kind!=='log').length;
   let h='<div class="top"><div class="brand">ניהול חופשות עובדים</div><div class="who"><span class="av">'+esc(me.name.charAt(0))+'</span><span><b>'+esc(me.name)+'</b>'+' · '+RL[me.role]+'</span><button onclick="pwM()">סיסמה</button><button onclick="logout()">יציאה</button></div></div>';
-  h+='<div class="seg"><button class="'+(tab==='cal'?'on':'')+'" onclick="setTab(\'cal\')">לוח שנה</button><button class="'+(tab==='mine'?'on':'')+'" onclick="setTab(\'mine\')">הבקשות שלי</button><button class="'+(tab==='inbox'?'on':'')+'" onclick="setTab(\'inbox\')">הודעות'+(un?'<span class="bdg">'+un+'</span>':'')+'</button>'+(mg?'<button class="'+(tab==='board'?'on':'')+'" onclick="setTab(\'board\')">משמרות</button>':'')+(mg?'<button class="'+(tab==='staff'?'on':'')+'\" onclick="setTab(\'staff\')">ניהול</button>':'')+(me.role==='admin'?'<button class="'+(tab==='hist'?'on':'')+'" onclick="setTab(\'hist\')">היסטוריה</button>':'')+'</div>';
+  h+='<div class="seg"><button class="'+(tab==='cal'?'on':'')+'" onclick="setTab(\'cal\')">לוח שנה</button><button class="'+(tab==='mine'?'on':'')+'" onclick="setTab(\'mine\')">הבקשות שלי</button><button class="'+(tab==='inbox'?'on':'')+'" onclick="setTab(\'inbox\')">הודעות'+(un?'<span class="bdg">'+un+'</span>':'')+'</button>'+(mg?'<button class="'+(tab==='board'?'on':'')+'" onclick="setTab(\'board\')">משמרות</button>':'')+(mg?'<button class="'+(tab==='staff'?'on':'')+'\" onclick="setTab(\'staff\')">ניהול</button>':'')+(me.role==='admin'?'<button class="'+(tab==='hist'?'on':'')+'" onclick="setTab(\'hist\')">היסטוריה'+(accNew()?'<span class="bdg">'+accNew()+'</span>':'')+'</button>':'')+'</div>';
   h+=tab==='cal'?calView():tab==='mine'?mineView():tab==='inbox'?inboxView():tab==='board'?boardView():tab==='hist'&&me.role==='admin'?histView():staffView();
   $('#app').innerHTML=h;
   popups();
@@ -594,15 +617,17 @@ async function fbLogin(n,p){
     const h=await sha(n);
     let cached=null;try{cached=localStorage.getItem('vm_em_'+h)}catch(_){}
     if(cached){
-      try{await auth.signInWithEmailAndPassword(cached,await sha(cached+'|'+p));return}
+      try{await auth.signInWithEmailAndPassword(cached,await sha(cached+'|'+p));logAcc('ok',n);return}
       catch(x){if(x&&x.code==='auth/too-many-requests')throw x}
     }
     const lg=await db.collection('logins').doc(h).get();
     if(!lg.exists){await legacyMigrate(n,p,h);return}
     const em=lg.data().email;
     await auth.signInWithEmailAndPassword(em,await sha(em+'|'+p));
+    logAcc('ok',n);
     try{localStorage.setItem('vm_em_'+h,em)}catch(_){}
   }catch(x){
+    logAcc('fail',n);
     e.textContent=(x&&x.code==='auth/too-many-requests')?'יותר מדי ניסיונות. נסו שוב בעוד כמה דקות':'שם משתמש או סיסמה שגויים'+((x&&(x.code||x.message))?' ('+(x.code||x.message)+')':'');
   }
 }
@@ -740,6 +765,27 @@ function logEv(act,r){
   }catch(_){}
 }
 function histView(){
+  if(hv==='acc')return histSw()+accView();
+  return histSw()+reqHist();
+}
+function histSw(){const f=accNew();return '<div class="seg hsw"><button class="'+(hv==='req'?'on':'')+'" onclick="hv=\'req\';render()">בקשות</button><button class="'+(hv==='acc'?'on':'')+'" onclick="openAcc()">כניסות למערכת'+(f?'<span class="bdg">'+f+'</span>':'')+'</button></div>'}
+const accNew=()=>(startAcc(),acc.filter(a=>a.kind==='fail'&&a.ts>accSeen).length);
+function openAcc(){hv='acc';accSeen=Date.now();try{localStorage.setItem('vm_acc_seen',accSeen)}catch(_){}render()}
+function accView(){
+  const l=acc.slice().sort((a,b)=>b.ts-a.ts),wk=Date.now()-7*864e5;
+  const K={ok:['כניסה','ok'],fail:['ניסיון כושל','no'],visit:['ביקור','up']};
+  const okN=l.filter(a=>a.kind==='ok'&&a.ts>wk).length,flN=l.filter(a=>a.kind==='fail'&&a.ts>wk).length,vN=l.filter(a=>a.kind==='visit'&&a.ts>wk).length;
+  let h='<div class="glass"><div class="row" style="justify-content:space-between;align-items:center;margin:0 0 4px"><b>כניסות למערכת</b>'+(l.length?'<button onclick="delAllAcc()"'+(armed==='acc'?' style="color:var(--no)"':'')+'>'+(armed==='acc'?'לחצו שוב למחיקת הכל':'מחיקת הכל')+'</button>':'')+'</div>';
+  h+='<div class="sub">כל כניסה, ניסיון כניסה כושל ופתיחה של דף הכניסה, עם מכשיר, כתובת אינטרנט ומיקום משוער (עיר ומדינה לפי כתובת האינטרנט, לא מיקום מדויק). רק מנהל האתר רואה את זה</div>';
+  h+='<div class="acc-sum"><span><b>'+okN+'</b> כניסות</span><span class="'+(flN?'bad':'')+'"><b>'+flN+'</b> ניסיונות כושלים</span><span><b>'+vN+'</b> ביקורים</span><span class="mu">ב־7 הימים האחרונים</span></div>';
+  if(!l.length)h+='<div class="mu" style="padding:8px 0">עוד אין רישומים. מעכשיו כל כניסה תירשם כאן</div>';
+  l.forEach(a=>{const k=K[a.kind]||['?','up'],unk=a.kind==='fail'&&a.name&&!users.some(u=>u.name===a.name),loc=[a.city,a.country].filter(Boolean).join(', ');
+    h+='<div class="hs'+(a.kind==='fail'?' hs-f':'')+'"><span class="hs-a '+k[1]+'">'+k[0]+'</span><div class="hs-b"><div>'+(a.kind==='visit'?'<span class="mu">מישהו פתח את דף הכניסה</span>':'<b>'+esc(a.name||'(ריק)')+'</b>'+(unk?' <span class="acc-unk">שם לא קיים במערכת</span>':(a.kind==='fail'&&a.name?' <span class="acc-wp">שם קיים, סיסמה שגויה</span>':'')))+'</div><div class="mu hs-m">'+fmtDT(a.ts)+(a.dev?' · '+esc(a.dev):'')+(loc?' · 📍 '+esc(loc):'')+(a.ip?' · <span dir="ltr">'+esc(a.ip)+'</span>':'')+'</div></div><button onclick="delAcc(\''+a.id+'\')">מחיקה</button></div>'});
+  return h+'</div>';
+}
+async function delAcc(id){try{await db.collection('access').doc(id).delete()}catch(x){toast('אירעה שגיאה במחיקה')}}
+async function delAllAcc(){if(armed!=='acc'){armed='acc';render();return}armed='';try{for(const a of acc)await db.collection('access').doc(a.id).delete();toast('הרישומים נמחקו')}catch(x){toast('אירעה שגיאה במחיקה')}}
+function reqHist(){
   const l=msgs.filter(m=>m.to===me.id&&m.kind==='log').sort((a,b)=>b.ts-a.ts);
   const AC={'הגשה':'ok','עדכון':'up','אישור':'ok','דחייה':'no','מחיקה':'no'};
   let h='<div class="glass"><div class="row" style="justify-content:space-between;align-items:center;margin:0 0 4px"><b>היסטוריית בקשות</b>'+(l.length?'<button onclick="delAllLogs()"'+(armed==='logs'?' style="color:var(--no)"':'')+'>'+(armed==='logs'?'לחצו שוב למחיקת הכל':'מחיקת כל ההיסטוריה')+'</button>':'')+'</div>';
