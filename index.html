@@ -277,14 +277,19 @@ function covSegs(k,day,lo,hi){
 }
 function shiftBoard(k){
   const day=users.map(u=>({u:u,sh:shOf(u,k)})).filter(x=>x.sh.length);
-  if(!day.length)return '<div class="mu" style="padding:10px 0">אין משמרות ביום זה</div>';
-  const all=[].concat(...day.map(x=>x.sh)),lo=Math.min(...all.map(x=>x[0])),hi=Math.max(...all.map(x=>x[1])),T=hi-lo;
+  const wkd=kd(k).getDay()<=4,base=u=>(u.shifts||[]).map(x=>x.split('-').map(tm2));
+  const off=wkd?users.filter(u=>u.role!=='admin'&&!shOf(u,k).length&&base(u).length&&altOf(u)).map(u=>({u:u,sh:base(u)})):[];
+  if(!day.length&&!off.length)return '<div class="mu" style="padding:10px 0">אין משמרות ביום זה</div>';
+  const all=[].concat(...day.map(x=>x.sh),...off.map(x=>x.sh)),lo=Math.min(...all.map(x=>x[0])),hi=Math.max(...all.map(x=>x[1])),T=hi-lo;
+  const wk=[].concat(...day.map(x=>x.sh)),cl=wk.length?Math.min(...wk.map(x=>x[0])):lo,ch=wk.length?Math.max(...wk.map(x=>x[1])):hi;
   const seg=(a,b,c,t)=>{a=Math.max(a,lo);b=Math.min(b,hi);return b>a?'<i class="'+c+'" style="left:'+((a-lo)/T*100).toFixed(2)+'%;width:'+((b-a)/T*100).toFixed(2)+'%">'+(t||'')+'</i>':''};
   let ax='<div class="ax">';for(let t=lo;t<=hi;t+=120)ax+='<span style="left:'+((t-lo)/T*100).toFixed(2)+'%">'+m2t(t)+'</span>';ax+='</div>';
-  const cs=covSegs(k,day,lo,hi),bad=cs.filter(x=>x.have<x.need);
+  const cs=day.length?covSegs(k,day,cl,ch):[],bad=cs.filter(x=>x.have<x.need);
   let h='<label>כיסוי כללי</label><div class="sf"><div class="tlw"><div class="tl">'+cs.map(x=>seg(x.a,x.b,x.have>=x.need?'g':'r',x.have+'/'+x.need)).join('')+'</div></div>'+ax+(bad.length?'<div class="bm bad">⚠ חסרים עובדים: '+bad.map(x=>m2t(x.a)+'–'+m2t(x.b)+' ('+x.have+' מתוך '+x.need+')').join(', ')+'</div>':'<div class="bm good">✓ הכיסוי מלא לאורך כל היום</div>')+'<div class="mu" style="font-size:12px;margin-top:4px">נדרש: 2 עובדים, ומשעה 18:00 3 עובדים</div></div><label>לפי עובד</label>';
   const rd=reqs.filter(r=>r.date===k);
-  day.forEach(x=>{
+  const rows=day.map(x=>Object.assign({off:0},x)).concat(off.map(x=>Object.assign({off:1},x))).sort((a,b)=>Math.min(...a.sh.map(s=>s[0]))-Math.min(...b.sh.map(s=>s[0]))||a.u.name.localeCompare(b.u.name,'he'));
+  rows.forEach(x=>{
+    if(x.off){h+='<div class="sf"><div class="sfh"><b>'+esc(x.u.name)+'</b><span class="mu">'+rng(x.sh)+'</span></div><div class="tlw"><div class="tl">'+x.sh.map(([a,b])=>seg(a,b,'r','חסר')).join('')+'</div></div>'+ax+'<div class="bm bad">חסר '+rng(x.sh)+' · שבוע חופש בסבב (שבוע כן, שבוע לא)</div></div>';return}
     const rs=rd.filter(r=>r.uid===x.u.id),ab=[];rs.forEach(r=>absOf(r,x.u).forEach(a=>ab.push(a)));
     const cov=covers.filter(c=>c.date===k&&rs.some(r=>r.id===c.req));
     h+='<div class="sf"><div class="sfh"><b>'+esc(x.u.name)+'</b><span class="mu">'+rng(x.sh)+'</span></div><div class="tlw"><div class="tl">'+x.sh.map(([a,b])=>seg(a,b,'g')).join('')+ab.map(a=>seg(a[0],a[1],'r','חסר')).join('')+'</div></div>'+ax+(ab.length?'<div class="bm bad">חסר '+rng(ab)+' · '+rs.map(r=>esc(desc(r))).join(', ')+'</div>':'<div class="bm good">משמרת מלאה ✓</div>')+(cov.length?'<div class="mu" style="font-size:12px">↪ מילוי: '+cov.map(c=>esc(c.name)+' '+c.from+'–'+c.to).join(', ')+'</div>':'')+'</div>';
@@ -293,7 +298,7 @@ function shiftBoard(k){
   return h;
 }
 function boardView(){
-  return '<div class="glass"><div class="nav"><button onclick="bnav(-1)">›</button><div class="ttl"><b>משמרות</b><span>'+esc(fmtD(bdate))+'</span></div><button onclick="bnav(1)">‹</button><button onclick="bnav(0)">היום</button></div><div class="leg"><span><i style="background:#7fd6a4"></i>עובד במשמרת</span><span><i style="background:#f5a9a1"></i>חסר (לפי בקשה)</span><span><i style="background:#8fc5ff"></i>מילוי חסר</span></div>'+shiftBoard(bdate)+'</div>';
+  return '<div class="glass"><div class="nav"><button onclick="bnav(-1)">›</button><div class="ttl"><b>משמרות</b><span>'+esc(fmtD(bdate))+'</span></div><button onclick="bnav(1)">‹</button><button onclick="bnav(0)">היום</button></div><div class="leg"><span><i style="background:#7fd6a4"></i>עובד במשמרת</span><span><i style="background:#f5a9a1"></i>חסר (בקשה או סבב)</span><span><i style="background:#8fc5ff"></i>מילוי חסר</span></div>'+shiftBoard(bdate)+'</div>';
 }
 function schedHtml(k){
   const day=users.map(u=>({u:u,sh:shOf(u,k)})).filter(x=>x.sh.length);
@@ -446,7 +451,7 @@ let HM=hStart(new Date(tm.getFullYear(),tm.getMonth(),tm.getDate(),12));
 function appView(){
   const mg=me.role==='manager'||me.role==='admin',un=msgs.filter(m=>m.to===me.id&&!m.read&&m.kind!=='log').length;
   let h='<div class="top"><div class="brand">ניהול חופשות עובדים</div><div class="who"><span class="av">'+esc(me.name.charAt(0))+'</span><span><b>'+esc(me.name)+'</b>'+' · '+RL[me.role]+'</span><button onclick="pwM()">סיסמה</button><button onclick="logout()">יציאה</button></div></div>';
-  h+='<div class="seg"><button class="'+(tab==='cal'?'on':'')+'" onclick="setTab(\'cal\')">לוח שנה</button><button class="'+(tab==='mine'?'on':'')+'" onclick="setTab(\'mine\')">הבקשות שלי</button><button class="'+(tab==='inbox'?'on':'')+'" onclick="setTab(\'inbox\')">הודעות'+(un?'<span class="bdg">'+un+'</span>':'')+'</button>'+(mg?'<button class="'+(tab==='board'?'on':'')+'" onclick="setTab(\'board\')">משמרות</button>':'')+(mg?'<button class="'+(tab==='staff'?'on':'')+'\" onclick="setTab(\'staff\')">ניהול</button>':'')+(me.role==='admin'?'<button class="'+(tab==='hist'?'on':'')+'" onclick="setTab(\'hist\')">היסטוריה'+(accNew()?'<span class="bdg">'+accNew()+'</span>':'')+'</button>':'')+'</div>';
+  h+='<div class="seg"><button class="'+(tab==='cal'?'on':'')+'" onclick="setTab(\'cal\')">לוח שנה</button><button class="'+(tab==='mine'?'on':'')+'" onclick="setTab(\'mine\')">הבקשות שלי</button><button class="'+(tab==='inbox'?'on':'')+'" onclick="setTab(\'inbox\')">הודעות'+(un?'<span class="bdg">'+un+'</span>':'')+'</button>'+'<button class="'+(tab==='board'?'on':'')+'" onclick="setTab(\'board\')">משמרות</button>'+(mg?'<button class="'+(tab==='staff'?'on':'')+'\" onclick="setTab(\'staff\')">ניהול</button>':'')+(me.role==='admin'?'<button class="'+(tab==='hist'?'on':'')+'" onclick="setTab(\'hist\')">היסטוריה'+(accNew()?'<span class="bdg">'+accNew()+'</span>':'')+'</button>':'')+'</div>';
   h+=tab==='cal'?calView():tab==='mine'?mineView():tab==='inbox'?inboxView():tab==='board'?boardView():tab==='hist'&&me.role==='admin'?histView():staffView();
   $('#app').innerHTML=h;
   popups();
@@ -464,7 +469,7 @@ function calView(){
   const gt=gm(first)===gm(last)?gm(first)+' '+gy(first):gm(first)+(gy(first)===gy(last)?'':' '+gy(first))+' – '+gm(last)+' '+gy(last);
   const yH=gemY(parseInt(String(a.year).replace(/\D/g,''))||0);
   let h='<div class="glass cal"><div class="cl-head"><button class="cl-arr" onclick="nav(-1)" aria-label="החודש הקודם">›</button><div class="cl-title"><b>'+esc(a.month)+' <span>'+esc(yH)+'</span></b><small>'+esc(gt)+'</small></div><button class="cl-arr" onclick="nav(1)" aria-label="החודש הבא">‹</button></div>';
-  h+='<div class="cl-bar"><button class="cl-today" onclick="goToday()">היום</button><div class="cl-leg"><span><i class="t-vac"></i>חופשה</span><span><i class="t-late"></i>הגעה מאוחרת</span><span><i class="t-early"></i>יציאה מוקדמת</span><span><i class="pend"></i>ממתין</span>'+(priv?'<span><i class="gap"></i>חסרים עובדים</span>':'')+'</div></div>';
+  h+='<div class="cl-bar"><button class="cl-today" onclick="goToday()">היום</button><div class="cl-leg"><span><i class="t-vac"></i>חופשה</span><span><i class="t-late"></i>הגעה מאוחרת</span><span><i class="t-early"></i>יציאה מוקדמת</span><span><i class="pend"></i>ממתין</span>'+'<span><i class="gap"></i>חסרים עובדים</span>'+'</div></div>';
   h+='<div class="cl-grid">';
   WD.forEach((w,i)=>h+='<div class="cl-wd'+(i===6?' sat':'')+'"><span class="lg">'+w+'</span><span class="sm">'+WDS[i]+'</span></div>');
   for(let i=0;i<first.getDay();i++)h+='<div class="cl-day cl-blank"></div>';
@@ -473,7 +478,7 @@ function calView(){
     const dt=new Date(first);dt.setDate(first.getDate()+d-1);
     const k=key(dt.getFullYear(),dt.getMonth(),dt.getDate()),hl=holiday(dt),yt=hl.some(x=>x.t==='yt'),wd=dt.getDay();
     const list=reqs.filter(r=>r.date===k).sort((x,y)=>x.ts-y.ts),lk=isLocked(k),past=k<todayK;
-    const gap=priv&&!past&&wd<=4&&gapsOf(k).length>0;
+    const gap=!past&&wd<=4&&gapsOf(k).length>0;
     list.forEach(r=>ag.push({r:r,dt:dt,k:k}));
     const gd=dt.getDate()===1||d===1?dt.getDate()+'.'+(dt.getMonth()+1):String(dt.getDate());
     h+='<div class="cl-day'+(k===todayK?' now':'')+(past?' past':'')+(lk?' lk':'')+(yt||wd===6?' rest':'')+'" onclick="openM(\''+k+'\')">';
@@ -505,7 +510,7 @@ function openM(k,eid){
   const list=reqs.filter(x=>x.date===k);
   let h='<div class="ov" onclick="if(event.target===this)closeM()"><div class="md"><h3>'+(medit?'עריכת בקשה':'בקשה חדשה')+'</h3><div class="sub">'+fmtD(k)+'</div>';
   if(lk)h+='<div class="lockb">🔒 היום נעול על ידי המנהל'+(mg?'':' – לא ניתן להגיש בקשות חדשות')+'</div>';
-  if(mg)h+=shiftBoard(k);
+  h+=shiftBoard(k);
   if(list.length){h+='<label>בקשות ביום זה</label>';list.forEach(x=>{h+='<div class="ex"><span><b>'+esc(x.name)+'</b> · '+esc(desc(x))+(me.role==='admin'&&subInfo(x)?'<br><span class="mu" style="font-size:12px">'+esc(subInfo(x))+'</span>':'')+'</span><span class="'+(x.status==='approved'?'ok':'mu')+'">'+(x.status==='approved'?'אושר':'ממתין')+'</span>'+(x.uid===me.id?'<button style="color:var(--no)" onclick="quickDel(\''+x.id+'\')">מחיקה</button>':'')+(x.uid===me.id&&x.id!==medit?'<button onclick="openM(\''+k+'\',\''+x.id+'\')">'+(lk&&!mg?'פתח':'עריכה')+'</button>':'')+'</div>'})}
   if(mg)h+=coverPanel(k,list);
   const canForm=!lk||mg;
