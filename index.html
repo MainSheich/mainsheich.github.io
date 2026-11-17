@@ -95,6 +95,92 @@ select{font:inherit;width:100%;padding:11px 12px;border:1px solid var(--bd);bord
 #toast.on{opacity:1;transform:translate(-50%,0)}
 .alt{background:color-mix(in srgb,var(--late) 18%,transparent);border:1px solid var(--late);border-radius:10px;padding:9px 12px;margin-top:8px;font-weight:700;font-size:14px}.shn{font-size:10px;font-weight:500}
 @media(max-width:640px){.day{min-height:74px;padding:3px;border-radius:10px}.chip{font-size:10px;padding:0 3px}.h{font-size:10px}.wrap{padding:10px}.glass{padding:12px}.grid{gap:3px}}
+
+/* ---- calendar (v2) ---- */
+.cal{padding:16px 14px 14px}
+.cl-head{display:flex;align-items:center;gap:10px;margin-bottom:6px}
+.cl-title{flex:1;text-align:center;line-height:1.2}
+.cl-title b{display:block;font-size:26px;font-weight:700;letter-spacing:-.3px}
+.cl-title b span{color:var(--ac);font-weight:500}
+.cl-title small{display:block;color:var(--mu);font-size:13px;margin-top:3px}
+.cl-arr{width:42px;height:42px;padding:0;border-radius:50%;font-size:22px;line-height:1;display:grid;place-items:center;background:var(--gl)}
+.cl-bar{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin:10px 0 12px}
+.cl-today{padding:6px 16px;border-radius:999px;font-size:13px;background:color-mix(in srgb,var(--ac) 10%,transparent);border-color:color-mix(in srgb,var(--ac) 35%,transparent);color:var(--ac);font-weight:500}
+.cl-leg{display:flex;gap:12px;flex-wrap:wrap;font-size:12px;color:var(--mu)}
+.cl-leg span{display:inline-flex;align-items:center;gap:5px}
+.cl-leg i{width:9px;height:9px;border-radius:50%;display:inline-block}
+.cl-leg i.pend{background:transparent;border:1.5px dashed var(--mu)}
+.cl-leg i.gap{background:var(--no)}
+.t-vac{--c:var(--vac)}.t-late{--c:var(--late)}.t-early{--c:var(--early)}
+.cl-leg i.t-vac,.cl-leg i.t-late,.cl-leg i.t-early{background:var(--c)}
+.cl-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));border:1px solid var(--bd);border-radius:16px;overflow:hidden;background:var(--bd);gap:1px}
+.cl-wd{background:color-mix(in srgb,var(--gl) 70%,var(--bd));text-align:center;font-size:12px;font-weight:500;color:var(--mu);padding:8px 0}
+.cl-wd.sat{color:var(--ac)}
+.cl-wd .sm{display:none}
+.cl-day{position:relative;background:var(--bg);min-height:112px;padding:7px 8px;cursor:pointer;transition:background .15s;display:flex;flex-direction:column;gap:3px;min-width:0}
+.cl-day:hover{background:color-mix(in srgb,var(--ac) 6%,var(--bg))}
+.cl-blank{background:color-mix(in srgb,var(--bd) 15%,var(--bg));cursor:default}
+.cl-blank:hover{background:color-mix(in srgb,var(--bd) 15%,var(--bg))}
+.cl-day.rest{background:color-mix(in srgb,var(--ac) 5%,var(--bg))}
+.cl-day.past{opacity:.5}
+.cl-day.lk{background-image:repeating-linear-gradient(135deg,transparent 0 9px,color-mix(in srgb,var(--mu) 14%,transparent) 9px 10px)}
+.cl-top{display:flex;justify-content:space-between;align-items:center}
+.cl-h{font-size:17px;font-weight:700;min-width:30px;height:30px;padding:0 4px;display:grid;place-items:center;border-radius:999px}
+.cl-g{font-size:11px;color:var(--mu);font-variant-numeric:tabular-nums}
+.cl-day.now .cl-h{background:linear-gradient(135deg,var(--ac),var(--ac2));color:#fff}
+.cl-day.now{box-shadow:inset 0 0 0 2px var(--ac)}
+.cl-meta{display:flex;align-items:center;gap:6px}.cl-flags{display:flex;gap:4px;align-items:center;font-size:11px}
+.cl-gap{width:8px;height:8px;border-radius:50%;background:var(--no);box-shadow:0 0 0 3px color-mix(in srgb,var(--no) 20%,transparent)}
+.cl-hol{font-size:11px;line-height:1.25;color:var(--mu);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cl-hol.yt{color:var(--no);font-weight:700}.cl-hol.cm{color:var(--late);font-weight:500}.cl-hol.fast{color:var(--early)}.cl-hol.rc{color:var(--ac2)}
+.cl-evs{display:flex;flex-direction:column;gap:3px;margin-top:3px}
+.cl-ev{font-size:11.5px;line-height:1.35;padding:2px 6px;border-radius:6px;background:color-mix(in srgb,var(--c) 14%,var(--bg));border-inline-start:3px solid var(--c);color:var(--tx);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cl-ev em{font-style:normal;color:var(--mu);font-size:10.5px}
+.cl-ev.p{background:transparent;border:1px dashed var(--c);border-inline-start:3px dashed var(--c)}
+.cl-ev.own{font-weight:700}
+.cl-more{font-size:11px;color:var(--mu);padding-inline-start:4px}
+.cl-dots{display:none}
+.cl-ag{margin-top:14px;padding:14px}
+.cl-agh{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px}
+.cl-row{display:flex;align-items:center;gap:12px;padding:10px 4px;border-top:1px solid var(--bd);cursor:pointer;border-radius:10px}
+.cl-row:hover{background:color-mix(in srgb,var(--ac) 5%,transparent)}
+.cl-row.past{opacity:.5}
+.cl-date{width:58px;flex:none;text-align:center;line-height:1.2}
+.cl-date b{display:block;font-size:18px}
+.cl-date span{font-size:11px;color:var(--mu)}
+.cl-info{flex:1;min-width:0}
+.cl-sub{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:2px}
+.cl-pill{font-size:12px;padding:1px 9px;border-radius:999px;background:color-mix(in srgb,var(--c) 15%,transparent);color:var(--c);font-weight:500}
+.cl-warn{font-size:12px;color:var(--no)}
+.cl-dev{font-size:11.5px;color:var(--mu);margin-top:3px}
+.hs{display:flex;align-items:center;gap:12px;padding:10px 2px;border-top:1px solid var(--bd)}
+.hs-a{flex:none;font-size:12px;font-weight:500;padding:3px 10px;border-radius:999px;min-width:52px;text-align:center}
+.hs-a.ok{background:color-mix(in srgb,var(--ok) 14%,transparent);color:var(--ok)}
+.hs-a.up{background:color-mix(in srgb,var(--ac) 12%,transparent);color:var(--ac)}
+.hs-a.no{background:color-mix(in srgb,var(--no) 12%,transparent);color:var(--no)}
+.hs-b{flex:1;min-width:0}.hs-m{font-size:12px;margin-top:2px}
+.cl-st{font-size:12px;padding:3px 10px;border-radius:999px;flex:none}
+.cl-st.ok{background:color-mix(in srgb,var(--ok) 14%,transparent);color:var(--ok)}
+.cl-st.pd{border:1px dashed var(--mu);color:var(--mu)}
+@media(max-width:640px){
+ .cal{padding:12px 8px 10px}
+ .cl-title b{font-size:22px}
+ .cl-wd .lg{display:none}.cl-wd .sm{display:inline}
+ .cl-grid{border-radius:12px}
+ .cl-day{min-height:62px;padding:4px 3px;gap:1px;align-items:center}
+ .cl-top{flex-direction:column;gap:0}
+ .cl-h{font-size:15px;min-width:26px;height:26px}
+ .cl-g{font-size:10px;line-height:1}
+ .cl-meta{display:contents}.cl-flags{position:absolute;top:3px;left:3px;font-size:9px}
+ .cl-gap{width:6px;height:6px;box-shadow:none}
+ .cl-hol{font-size:8.5px;max-width:100%;text-align:center}
+ .cl-evs{display:none}
+ .cl-dots{display:flex;gap:3px;justify-content:center;flex-wrap:wrap;margin-top:auto;padding-bottom:2px}
+ .cl-dots i{width:7px;height:7px;border-radius:50%;background:var(--c)}
+ .cl-dots i.p{background:transparent;box-shadow:inset 0 0 0 1.5px var(--c)}
+ .cl-dots b{font-size:9px;line-height:7px;color:var(--mu)}
+ .cl-leg{gap:9px;font-size:11px}
+}
 </style>
 </head>
 <body>
@@ -210,7 +296,7 @@ function schedHtml(k){
 }
 function parseSh(v){return (v.match(/\d{1,2}:\d{2}\s*-\s*\d{1,2}:\d{2}/g)||[]).map(x=>x.split('-').map(t=>{const p=t.trim().split(':');return p[0].padStart(2,'0')+':'+p[1]}).join('-'))}
 function seedShifts(s){
-  const L=[['דודו',['14:00-22:00'],'emp-dudu','4641','employee'],['אהרן משה',['10:00-14:00','18:00-22:00'],'manager-aharon','0852','manager'],['חן',['14:00-22:00'],'emp-chen','2222','employee'],['אברהם עדנן',['10:00-14:00'],'emp-avraham','3333','employee']];
+  const L=[['דודו',['14:00-22:00'],'emp-dudu','','employee'],['אהרן משה',['10:00-14:00','18:00-22:00'],'manager-aharon','','manager'],['חן',['14:00-22:00'],'emp-chen','','employee'],['אברהם עדנן',['10:00-14:00'],'emp-avraham','','employee']];
   L.forEach(([n,sh,id,pw,rl])=>{
     const d=s.docs.find(x=>x.data().name===n);
     if(d)db.collection('users').doc(d.id).update({shifts:sh}).catch(()=>{});
@@ -231,7 +317,7 @@ async function init(){
 function startData(){
   if(dataOn)return;dataOn=1;
   const timer=setTimeout(()=>{if(!ready){ready=1;render()}},10000),fail=e=>{dbErr=(e&&(e.code||e.message))||"error";ready=1;render()};
-  db.collection('users').onSnapshot(s=>{if(!shSeeded&&(!s.metadata||!s.metadata.fromCache)&&s.docs.length&&!s.docs.some(d=>d.data().shifts)){shSeeded=1;seedShifts(s)}if(FB&&!seeded&&!s.metadata.fromCache){seeded=1;if(!s.docs.length){db.collection('users').doc('manager-aharon').set({name:'אהרן משה',pass:'0852',role:'manager'});db.collection('users').doc('emp-dudu').set({name:'דודו',pass:'4641',role:'employee'})}if(!s.docs.some(d=>d.data().role==='admin'))db.collection('users').doc('admin-dudu').set({name:'דודו מנהל',pass:'3275',role:'admin'})}users=mapDocs(s);clearTimeout(timer);ready=1;
+  db.collection('users').onSnapshot(s=>{if(!shSeeded&&(!s.metadata||!s.metadata.fromCache)&&s.docs.length&&!s.docs.some(d=>d.data().shifts)){shSeeded=1;seedShifts(s)}if(FB&&!seeded&&!s.metadata.fromCache){seeded=1;if(!s.docs.length){db.collection('users').doc('manager-aharon').set({name:'אהרן משה',pass:'',role:'manager'});db.collection('users').doc('emp-dudu').set({name:'דודו',pass:'',role:'employee'})}if(!s.docs.some(d=>d.data().role==='admin'))db.collection('users').doc('admin-dudu').set({name:'דודו מנהל',pass:'',role:'admin'})}users=mapDocs(s);clearTimeout(timer);ready=1;
     if(me===null&&ls.get())me=users.find(u=>u.id===ls.get())||null;
     else if(me)me=users.find(u=>u.id===me.id)||null;
     if(!me)ls.set(null);render()},fail);
@@ -335,31 +421,57 @@ let HM=hStart(new Date(tm.getFullYear(),tm.getMonth(),tm.getDate(),12));
 
 
 function appView(){
-  const mg=me.role==='manager'||me.role==='admin',un=msgs.filter(m=>m.to===me.id&&!m.read).length;
+  const mg=me.role==='manager'||me.role==='admin',un=msgs.filter(m=>m.to===me.id&&!m.read&&m.kind!=='log').length;
   let h='<div class="top"><div class="brand">ניהול חופשות עובדים</div><div class="who"><span class="av">'+esc(me.name.charAt(0))+'</span><span><b>'+esc(me.name)+'</b>'+' · '+RL[me.role]+'</span><button onclick="pwM()">סיסמה</button><button onclick="logout()">יציאה</button></div></div>';
-  h+='<div class="seg"><button class="'+(tab==='cal'?'on':'')+'" onclick="setTab(\'cal\')">לוח שנה</button><button class="'+(tab==='mine'?'on':'')+'" onclick="setTab(\'mine\')">הבקשות שלי</button><button class="'+(tab==='inbox'?'on':'')+'" onclick="setTab(\'inbox\')">הודעות'+(un?'<span class="bdg">'+un+'</span>':'')+'</button>'+(mg?'<button class="'+(tab==='board'?'on':'')+'" onclick="setTab(\'board\')">משמרות</button>':'')+(mg?'<button class="'+(tab==='staff'?'on':'')+'\" onclick="setTab(\'staff\')">ניהול</button>':'')+'</div>';
-  h+=tab==='cal'?calView():tab==='mine'?mineView():tab==='inbox'?inboxView():tab==='board'?boardView():staffView();
+  h+='<div class="seg"><button class="'+(tab==='cal'?'on':'')+'" onclick="setTab(\'cal\')">לוח שנה</button><button class="'+(tab==='mine'?'on':'')+'" onclick="setTab(\'mine\')">הבקשות שלי</button><button class="'+(tab==='inbox'?'on':'')+'" onclick="setTab(\'inbox\')">הודעות'+(un?'<span class="bdg">'+un+'</span>':'')+'</button>'+(mg?'<button class="'+(tab==='board'?'on':'')+'" onclick="setTab(\'board\')">משמרות</button>':'')+(mg?'<button class="'+(tab==='staff'?'on':'')+'\" onclick="setTab(\'staff\')">ניהול</button>':'')+(me.role==='admin'?'<button class="'+(tab==='hist'?'on':'')+'" onclick="setTab(\'hist\')">היסטוריה</button>':'')+'</div>';
+  h+=tab==='cal'?calView():tab==='mine'?mineView():tab==='inbox'?inboxView():tab==='board'?boardView():tab==='hist'&&me.role==='admin'?histView():staffView();
   $('#app').innerHTML=h;
   popups();
 }
+function gemY(n){
+  n%=1000;let s='';[[400,'ת'],[300,'ש'],[200,'ר'],[100,'ק']].forEach(([v,l])=>{while(n>=v){s+=l;n-=v}});
+  if(n===15)s+='טו';else if(n===16)s+='טז';else{s+=['','י','כ','ל','מ','נ','ס','ע','פ','צ'][Math.floor(n/10)];s+=['','א','ב','ג','ד','ה','ו','ז','ח','ט'][n%10]}
+  return s.length>1?s.slice(0,-1)+'״'+s.slice(-1):s+'׳';
+}
+const WDS=['א׳','ב׳','ג׳','ד׳','ה׳','ו׳','ש׳'];
 function calView(){
-  const priv=me.role==='manager'||me.role==='admin';let sm;
+  const priv=me.role==='manager'||me.role==='admin';
   const first=HM,days=hLen(HM),last=new Date(HM),a=hp(first);last.setDate(last.getDate()+days-1);
-  const hm=a.month,hy=a.year,gf=x=>x.toLocaleDateString('he-IL',{month:'long',year:'numeric'}),gt=gf(first)===gf(last)?gf(first):gf(first)+' – '+gf(last);
-  let h='<div class="glass"><div class="nav"><button onclick="nav(-1)">›</button><div class="ttl"><b>'+esc(hm)+' '+esc(hy)+'</b><span>'+gt+'</span></div><button onclick="nav(1)">‹</button><button onclick="goToday()">היום</button></div>';
-  h+='<div class="leg"><span><i style="background:var(--vac)"></i>חופשה</span><span><i style="background:var(--late)"></i>הגעה מאוחרת</span><span><i style="background:var(--early)"></i>יציאה מוקדמת</span><span>מקווקו = ממתין לאישור</span><span>🔒 יום נעול</span></div><div class="grid">';
-  WD.forEach(w=>h+='<div class="wd">'+w+'</div>');
-  for(let i=0;i<first.getDay();i++)h+='<div class="day blank"></div>';
+  const gm=x=>x.toLocaleDateString('he-IL',{month:'long'}),gy=x=>x.getFullYear();
+  const gt=gm(first)===gm(last)?gm(first)+' '+gy(first):gm(first)+(gy(first)===gy(last)?'':' '+gy(first))+' – '+gm(last)+' '+gy(last);
+  const yH=gemY(parseInt(String(a.year).replace(/\D/g,''))||0);
+  let h='<div class="glass cal"><div class="cl-head"><button class="cl-arr" onclick="nav(-1)" aria-label="החודש הקודם">›</button><div class="cl-title"><b>'+esc(a.month)+' <span>'+esc(yH)+'</span></b><small>'+esc(gt)+'</small></div><button class="cl-arr" onclick="nav(1)" aria-label="החודש הבא">‹</button></div>';
+  h+='<div class="cl-bar"><button class="cl-today" onclick="goToday()">היום</button><div class="cl-leg"><span><i class="t-vac"></i>חופשה</span><span><i class="t-late"></i>הגעה מאוחרת</span><span><i class="t-early"></i>יציאה מוקדמת</span><span><i class="pend"></i>ממתין</span>'+(priv?'<span><i class="gap"></i>חסרים עובדים</span>':'')+'</div></div>';
+  h+='<div class="cl-grid">';
+  WD.forEach((w,i)=>h+='<div class="cl-wd'+(i===6?' sat':'')+'"><span class="lg">'+w+'</span><span class="sm">'+WDS[i]+'</span></div>');
+  for(let i=0;i<first.getDay();i++)h+='<div class="cl-day cl-blank"></div>';
+  const ag=[];
   for(let d=1;d<=days;d++){
-    const dt=new Date(first);dt.setDate(first.getDate()+d-1);const k=key(dt.getFullYear(),dt.getMonth(),dt.getDate()),hl=holiday(dt),yt=hl.some(x=>x.t==='yt');
-    const list=reqs.filter(r=>r.date===k).sort((x,y)=>x.ts-y.ts),lk=isLocked(k);
-    h+='<div class="day'+(k===todayK?' today':'')+(lk?' lk':'')+(yt?' ytd':'')+(dt.getDay()===6?' sat':'')+'" onclick="openM(\''+k+'\')"><div class="n"><span>'+hday(dt)+(lk?' 🔒':'')+'</span><span class="h">'+dt.getDate()+(dt.getDate()===1?'/'+(dt.getMonth()+1):'')+'</span></div>'+hl.slice(0,2).map(x=>'<div class="hol '+x.t+'">'+esc(x.n)+'</div>').join('');
-    list.slice(0,3).forEach(r=>{const own=r.uid===me.id;h+='<div class="chip t-'+r.type+(r.status==='pending'?' p':'')+(own?' own':'')+'" title="'+esc(r.name+' · '+desc(r)+(r.status==='pending'?' · ממתין לאישור':''))+'"'+(own?' onclick="event.stopPropagation();openM(\''+k+'\',\''+r.id+'\')"':'')+'>'+esc(r.name)+' · '+SH[r.type]+(r.time?' '+r.time:'')+(priv&&(sm=missingOf(r))?'<div class="shn">⚠ חסר '+sm+'</div>':'')+'</div>'});
-    covers.filter(c=>c.date===k).slice(0,2).forEach(c=>{h+='<div class="chip cv">↪ '+esc(c.name)+' '+c.from+'–'+c.to+'</div>'});
-    if(list.length>3)h+='<div class="more">+'+(list.length-3)+' נוספים</div>';
+    const dt=new Date(first);dt.setDate(first.getDate()+d-1);
+    const k=key(dt.getFullYear(),dt.getMonth(),dt.getDate()),hl=holiday(dt),yt=hl.some(x=>x.t==='yt'),wd=dt.getDay();
+    const list=reqs.filter(r=>r.date===k).sort((x,y)=>x.ts-y.ts),lk=isLocked(k),past=k<todayK;
+    const gap=priv&&!past&&wd<=4&&gapsOf(k).length>0;
+    list.forEach(r=>ag.push({r:r,dt:dt,k:k}));
+    const gd=dt.getDate()===1||d===1?dt.getDate()+'.'+(dt.getMonth()+1):String(dt.getDate());
+    h+='<div class="cl-day'+(k===todayK?' now':'')+(past?' past':'')+(lk?' lk':'')+(yt||wd===6?' rest':'')+'" onclick="openM(\''+k+'\')">';
+    const fl=(lk||gap)?'<span class="cl-flags">'+(gap?'<span class="cl-gap" title="חסרים עובדים"></span>':'')+(lk?'<span title="יום נעול">🔒</span>':'')+'</span>':'';
+    h+='<div class="cl-top"><span class="cl-h">'+hday(dt)+'</span><span class="cl-meta">'+fl+'<span class="cl-g">'+gd+'</span></span></div>';
+    if(hl.length)h+='<div class="cl-hol '+hl[0].t+'" title="'+esc(hl.map(x=>x.n).join(' · '))+'">'+esc(hl[0].n)+'</div>';
+    if(list.length){
+      h+='<div class="cl-evs">';
+      list.slice(0,3).forEach(r=>{h+='<div class="cl-ev t-'+r.type+(r.status==='pending'?' p':'')+(r.uid===me.id?' own':'')+'" title="'+esc(r.name+' · '+desc(r)+(r.status==='pending'?' · ממתין לאישור':''))+'">'+esc(r.name.split(' ')[0])+(r.time?' <em>'+r.time+'</em>':'')+'</div>'});
+      if(list.length>3)h+='<div class="cl-more">+'+(list.length-3)+'</div>';
+      h+='</div><div class="cl-dots">'+list.slice(0,4).map(r=>'<i class="t-'+r.type+(r.status==='pending'?' p':'')+'"></i>').join('')+(list.length>4?'<b>+</b>':'')+'</div>';
+    }
     h+='</div>';
   }
-  return h+'</div></div>';
+  h+='</div></div>';
+  if(me.role!=='admin')return h;
+  h+='<div class="glass cl-ag"><div class="cl-agh"><b>בקשות בחודש '+esc(a.month)+'</b><span class="mu">'+(ag.length?ag.length+' בקשות':'')+'</span></div>';
+  if(!ag.length)h+='<div class="mu" style="padding:6px 0">אין בקשות בחודש הזה</div>';
+  ag.forEach(x=>{const r=x.r,past=x.k<todayK,own=r.uid===me.id,sm=priv&&!past?missingOf(r):'';
+    h+='<div class="cl-row'+(past?' past':'')+'" onclick="openM(\''+x.k+'\''+(own?',\''+r.id+'\'':'')+')"><div class="cl-date"><b>'+hday(x.dt)+'</b><span>'+WDS[x.dt.getDay()]+' · '+x.dt.getDate()+'.'+(x.dt.getMonth()+1)+'</span></div><div class="cl-info"><div><b>'+esc(r.name)+'</b>'+(own?' <span class="mu">(שלי)</span>':'')+'</div><div class="cl-sub"><span class="cl-pill t-'+r.type+'">'+T[r.type]+(r.time?' · '+r.time:'')+'</span>'+(sm?'<span class="cl-warn">⚠ חסר '+esc(sm)+'</span>':'')+'</div>'+(me.role==='admin'&&subInfo(r)?'<div class="cl-dev">'+esc(subInfo(r))+'</div>':'')+'</div><span class="cl-st '+(r.status==='approved'?'ok':'pd')+'">'+(r.status==='approved'?'אושר':'ממתין')+'</span></div>'});
+  return h+'</div>';
 }
 
 function openM(k,eid){
@@ -371,7 +483,7 @@ function openM(k,eid){
   let h='<div class="ov" onclick="if(event.target===this)closeM()"><div class="md"><h3>'+(medit?'עריכת בקשה':'בקשה חדשה')+'</h3><div class="sub">'+fmtD(k)+'</div>';
   if(lk)h+='<div class="lockb">🔒 היום נעול על ידי המנהל'+(mg?'':' – לא ניתן להגיש בקשות חדשות')+'</div>';
   if(mg)h+=shiftBoard(k);
-  if(list.length){h+='<label>בקשות ביום זה</label>';list.forEach(x=>{h+='<div class="ex"><span><b>'+esc(x.name)+'</b> · '+esc(desc(x))+'</span><span class="'+(x.status==='approved'?'ok':'mu')+'">'+(x.status==='approved'?'אושר':'ממתין')+'</span>'+(x.uid===me.id?'<button style="color:var(--no)" onclick="quickDel(\''+x.id+'\')">מחיקה</button>':'')+(x.uid===me.id&&x.id!==medit?'<button onclick="openM(\''+k+'\',\''+x.id+'\')">'+(lk&&!mg?'פתח':'עריכה')+'</button>':'')+'</div>'})}
+  if(list.length){h+='<label>בקשות ביום זה</label>';list.forEach(x=>{h+='<div class="ex"><span><b>'+esc(x.name)+'</b> · '+esc(desc(x))+(me.role==='admin'&&subInfo(x)?'<br><span class="mu" style="font-size:12px">'+esc(subInfo(x))+'</span>':'')+'</span><span class="'+(x.status==='approved'?'ok':'mu')+'">'+(x.status==='approved'?'אושר':'ממתין')+'</span>'+(x.uid===me.id?'<button style="color:var(--no)" onclick="quickDel(\''+x.id+'\')">מחיקה</button>':'')+(x.uid===me.id&&x.id!==medit?'<button onclick="openM(\''+k+'\',\''+x.id+'\')">'+(lk&&!mg?'פתח':'עריכה')+'</button>':'')+'</div>'})}
   if(mg)h+=coverPanel(k,list);
   const canForm=!lk||mg;
   if(canForm){
@@ -496,7 +608,7 @@ async function fbLogin(n,p){
 }
 async function legacyMigrate(n,p,h){
   let q=await db.collection('users').get();
-  if(q.empty&&n==='דודו מנהל'&&p==='3275'){await db.collection('users').doc('admin-dudu').set({name:'דודו מנהל',pass:'3275',role:'admin'});q=await db.collection('users').get()}
+  if(q.empty&&n==='דודו מנהל'&&p){await db.collection('users').doc('admin-dudu').set({name:'דודו מנהל',pass:p,role:'admin'});q=await db.collection('users').get()}
   const nz=v=>String(v==null?'':v).replace(/[\u200e\u200f\u202a-\u202e\u00a0]/g,' ').replace(/\s+/g,' ').trim();
   const d=q.docs.find(x=>nz(x.data().name)===nz(n)&&nz(x.data().pass)===nz(p));
   if(!d)throw new Error('bad: users='+q.size+' nameFound='+q.docs.some(x=>nz(x.data().name)===nz(n))+' project='+FIREBASE_CONFIG.projectId);
@@ -598,6 +710,52 @@ async function toggleLock(){
     closeM();
   }catch(x){$('#me').textContent='אירעה שגיאה, נסו שוב'}
 }
+let devModel='';
+try{navigator.userAgentData&&navigator.userAgentData.getHighEntropyValues&&navigator.userAgentData.getHighEntropyValues(['model']).then(v=>{devModel=(v&&v.model)||''}).catch(()=>{})}catch(_){}
+function devName(){
+  const u=navigator.userAgent||'';
+  const os=/iPhone/.test(u)?'iPhone':(/iPad/.test(u)||(/Macintosh/.test(u)&&navigator.maxTouchPoints>1))?'iPad':/Android/.test(u)?'Android':/Windows/.test(u)?'Windows':/Mac OS X/.test(u)?'Mac':/Linux/.test(u)?'Linux':'מכשיר לא מזוהה';
+  let m=devModel;if(!m){const a=u.match(/Android [\d.]+;\s*([^;)]+?)(?:\s+Build|\))/);if(a&&a[1].trim()!=='K')m=a[1].trim()}
+  const br=/EdgA?\/|Edg\//.test(u)?'Edge':/SamsungBrowser/.test(u)?'Samsung Internet':/OPR\/|Opera/.test(u)?'Opera':/CriOS|Chrome\//.test(u)?'Chrome':/FxiOS|Firefox/.test(u)?'Firefox':/Safari/.test(u)?'Safari':'';
+  let app=false;try{app=(window.matchMedia&&matchMedia('(display-mode: standalone)').matches)||navigator.standalone===true}catch(_){}
+  return [os+(m?' ('+m+')':''),br,app?'מסך הבית':''].filter(Boolean).join(' · ').slice(0,120);
+}
+const fmtDT=ms=>new Date(ms).toLocaleString('he-IL',{day:'numeric',month:'numeric',hour:'2-digit',minute:'2-digit'});
+function subInfo(r){
+  if(r.cts)return 'הוגש '+fmtDT(r.cts)+(r.cdev?' · '+r.cdev:'')+(r.ets?' · עודכן '+fmtDT(r.ets)+(r.edev?' · '+r.edev:''):'');
+  return r.ts?'נשמר '+fmtDT(r.ts)+' · מכשיר לא נרשם (בקשה מלפני העדכון)':'';
+}
+function subLog(){
+  const l=reqs.slice().sort((a,b)=>(b.ets||b.cts||b.ts||0)-(a.ets||a.cts||a.ts||0)).slice(0,40);
+  let h='<b>יומן הגשות</b><div class="sub">40 הבקשות האחרונות: מתי הוגשו או עודכנו, ומאיזה מכשיר. רק מנהל האתר רואה את זה</div>';
+  if(!l.length)return h+'<div class="mu">אין בקשות</div><div style="height:22px"></div>';
+  l.forEach(r=>h+='<div class="ur" style="flex-wrap:wrap"><span><b>'+esc(r.name)+'</b> · '+esc(desc(r))+' · ל־'+esc(fmtD(r.date))+'</span><span class="mu" style="font-size:12px">'+esc(subInfo(r))+'</span></div>');
+  return h+'<div style="height:22px"></div>';
+}
+function logEv(act,r){
+  try{
+    const ad=users.filter(u=>u.role==='admin');if(!ad.length||!r)return;
+    const dv=devName(),t=Date.now();
+    ad.forEach(a=>db.collection('messages').add({to:a.id,kind:'log',act:act,lrid:r.id||'',who:r.name||'',type:r.type||'',time:r.time||'',date:r.date||'',note:r.note||'',by:me.name,dev:dv,ts:t,read:true}).catch(()=>{}));
+  }catch(_){}
+}
+function histView(){
+  const l=msgs.filter(m=>m.to===me.id&&m.kind==='log').sort((a,b)=>b.ts-a.ts);
+  const AC={'הגשה':'ok','עדכון':'up','אישור':'ok','דחייה':'no','מחיקה':'no'};
+  let h='<div class="glass"><div class="row" style="justify-content:space-between;align-items:center;margin:0 0 4px"><b>היסטוריית בקשות</b>'+(l.length?'<button onclick="delAllLogs()"'+(armed==='logs'?' style="color:var(--no)"':'')+'>'+(armed==='logs'?'לחצו שוב למחיקת הכל':'מחיקת כל ההיסטוריה')+'</button>':'')+'</div>';
+  h+='<div class="sub">כל הגשה, עדכון, אישור, דחייה ומחיקה של בקשה, עם השעה והמכשיר. מחיקה כאן מוחקת רק את הרישום בהיסטוריה, והבקשה עצמה נשארת</div>';
+  if(!l.length)h+='<div class="mu" style="padding:8px 0">עוד אין רישומים. מעכשיו כל פעולה על בקשה תירשם כאן</div>';
+  l.forEach(m=>{
+    const rq={type:m.type,time:m.time},ds=T[m.type]?desc(rq):'';
+    h+='<div class="hs"><span class="hs-a '+(AC[m.act]||'up')+'">'+esc(m.act)+'</span><div class="hs-b"><div><b>'+esc(m.who)+'</b>'+(ds?' · '+esc(ds):'')+(m.date?' · ל־'+esc(fmtD(m.date)):'')+'</div><div class="mu hs-m">'+fmtDT(m.ts)+(m.by&&m.by!==m.who?' · על ידי '+esc(m.by):'')+(m.dev?' · '+esc(m.dev):'')+(m.note?' · הערה: '+esc(m.note):'')+'</div></div><button onclick="delMsg(\''+m.id+'\')">מחיקה</button></div>';
+  });
+  return h+'</div>';
+}
+async function delAllLogs(){
+  if(armed!=='logs'){armed='logs';render();return}
+  armed='';
+  try{for(const m of msgs.filter(m=>m.to===me.id&&m.kind==='log'))await db.collection('messages').doc(m.id).delete();toast('ההיסטוריה נמחקה')}catch(x){toast('אירעה שגיאה במחיקה')}
+}
 async function save(){
   const e=$('#me');
   if(!mt){e.textContent='יש לבחור קטגוריה';return}
@@ -608,6 +766,8 @@ async function save(){
   let em='';
   
   const d={uid:me.id,name:me.name,date:mdate,type:mt,time:time,note:$('#mnote').value.trim(),status:mg?'approved':'pending',ts:Date.now()};
+  const prev=medit?reqs.find(x=>x.id===medit):null,dv=devName();
+  if(prev){d.cts=prev.cts||prev.ts||Date.now();d.cdev=prev.cdev||'';d.ets=Date.now();d.edev=dv}else{d.cts=Date.now();d.cdev=dv}
   try{
     let rid=medit;
     if(medit)await db.collection('requests').doc(medit).set(d);
@@ -615,6 +775,7 @@ async function save(){
     const boss=users.find(u=>u.role==='manager');
     const wasEdit=!!medit;
     closeM();
+    logEv(wasEdit?'עדכון':'הגשה',Object.assign({},d,{id:rid}));
     if(!mg&&boss){
       const text=me.name+' '+(wasEdit?'עדכן/ה בקשה':'הגיש/ה בקשה')+': '+desc(d)+' · '+fmtD(d.date);
       d.rid=rid;
@@ -669,10 +830,11 @@ async function sendMail(boss,d,text,em,isRem){
   }catch(x){lastMailErr=((x&&x.status)?x.status+' ':'')+((x&&(x.text||x.message))||String(x));if(!isRem)mailFallback(d)}
 }
 async function delReq(){
-  try{await db.collection('requests').doc(medit).delete();closeM()}catch(x){$('#me').textContent='אירעה שגיאה במחיקה'}
+  const r0=reqs.find(x=>x.id===medit);
+  try{await db.collection('requests').doc(medit).delete();closeM();logEv('מחיקה',r0)}catch(x){$('#me').textContent='אירעה שגיאה במחיקה'}
 }
 function inboxView(){
-  const mine=msgs.filter(m=>m.to===me.id).sort((a,b)=>b.ts-a.ts);
+  const mine=msgs.filter(m=>m.to===me.id&&m.kind!=='log').sort((a,b)=>b.ts-a.ts);
   let h='<div class="glass"><div class="row" style="justify-content:space-between;align-items:center;margin:0 0 10px"><b>תיבת הודעות</b>'+(mine.length?'<button onclick="delAllMsgs()">מחיקת כל ההודעות</button>':'')+'</div>';
   if(!mine.length)h+='<div class="mu">אין הודעות</div>';
   mine.forEach(m=>{
@@ -692,12 +854,13 @@ async function decide(rid,ok){
   try{
     if(ok)await db.collection('requests').doc(rid).update({status:'approved'});
     else await db.collection('requests').doc(rid).delete();
+    logEv(ok?'אישור':'דחייה',r);
     await db.collection('messages').add({to:r.uid,text:'הבקשה שלך ('+desc(r)+' · '+fmtD(r.date)+') '+(ok?'אושרה ✓':'לא אושרה והוסרה מלוח השנה'),ts:Date.now(),read:false});
   }catch(x){toast('אירעה שגיאה, נסו שוב')}
 }
-async function quickDel(id){try{await db.collection('requests').doc(id).delete();closeM();toast('הבקשה נמחקה')}catch(x){toast('אירעה שגיאה במחיקה')}}
+async function quickDel(id){const r0=reqs.find(x=>x.id===id);try{await db.collection('requests').doc(id).delete();closeM();logEv('מחיקה',r0);toast('הבקשה נמחקה')}catch(x){toast('אירעה שגיאה במחיקה')}}
 async function delMsg(id){try{await db.collection('messages').doc(id).delete()}catch(x){toast('אירעה שגיאה במחיקה')}}
-async function delAllMsgs(){try{for(const m of msgs.filter(m=>m.to===me.id&&!(m.rid&&me.role==='manager'&&reqs.some(x=>x.id===m.rid&&x.status==='pending'))))await db.collection('messages').doc(m.id).delete();toast('ההודעות נמחקו')}catch(x){toast('אירעה שגיאה במחיקה')}}
+async function delAllMsgs(){try{for(const m of msgs.filter(m=>m.to===me.id&&m.kind!=='log'&&!(m.rid&&me.role==='manager'&&reqs.some(x=>x.id===m.rid&&x.status==='pending'))))await db.collection('messages').doc(m.id).delete();toast('ההודעות נמחקו')}catch(x){toast('אירעה שגיאה במחיקה')}}
 function lockList(){return locks.slice().sort((a,b)=>a.id<b.id?-1:1).map(l=>'<div class="ur"><span>🔒 '+fmtD(l.id)+'</span><button onclick="unlock(\''+l.id+'\')">שחרור</button></div>').join('')||'<div class="mu">אין ימים נעולים</div>'}
 async function unlock(k){try{await db.collection('locks').doc(k).delete()}catch(x){toast('אירעה שגיאה')}}
 async function lockRange(on){
