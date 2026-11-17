@@ -836,6 +836,1013 @@ async function save(){
     }
   }catch(x){e.textContent='אירעה שגיאה בשמירה, נסו שוב'}
 }
+const MAIL_FROM='ab63187881@gmail.com',MAIL_TO='a0527190852@gmail.com';
+function mailParts(d){const day=kd(d.date).toLocaleDateString('he-IL');return{subject:'בקשה מעובד – '+d.name,body:'בקשה מעובד: '+d.name+'\nסוג הבקשה: '+desc(d)+'\nתאריך: '+day+(d.note?'\nסיבה / הערות: '+d.note:'')}}
+function mailFallback(d){const mp=mailParts(d),u='mailto:'+MAIL_TO+'?subject='+encodeURIComponent(mp.subject)+'&body='+encodeURIComponent(mp.body);
+  $('#modal').innerHTML='<div class="ov" onclick="if(event.target===this)closeM()"><div class="md"><h3>הבקשה נשמרה ✓</h3><div class="sub">המייל האוטומטי לא נשלח מהדפדפן. לחצו לפתיחת מייל מוכן למנהל ושלחו אותו.</div><div class="mu" dir="ltr" style="font-size:12px;margin-bottom:8px;word-break:break-word">'+esc(lastMailErr)+'</div><div class="row"><a href="'+u+'" target="_blank" rel="noopener"><button class="pri">פתיחת מייל מוכן למנהל</button></a><button onclick="closeM()">סגירה</button></div></div></div>'}
+let lastMailErr='';
+async function sendMail(boss,d,text,em,isRem){
+  try{
+    const mp=mailParts(d),day=kd(d.date).toLocaleDateString('he-IL');if(!window.emailjs)throw new Error('no emailjs');
+    
+    // בניית תיאור הסוג כולל השעה בצורה ברורה
+    const typeDesc = T[d.type] + (d.time ? ' (' + (d.type === 'late' ? 'מגיע ב־' : 'יוצא ב־') + d.time + ')' : '');
+    const noteText = d.note || 'אין הערות';
+    const an=analyze(d),shT=an.missing.length?'חסר עובד '+fromTo(an.missing):'לא נקבעו שעות עבודה ליום זה',exT=an.viol.length?'⚠ חריגה מדרישת הכיסוי: '+violText(an):'אין חריגה מדרישת הכיסוי (לפחות 2 עובדים, ומשעה 18:00 לפחות 3)';
+    
+    // לקיחת כתובת האתר הנוכחית באופן דינמי
+    const currentAppUrl = window.location.origin + window.location.pathname;
+
+    await emailjs.send('service_lnwmdw9','template_mk2vhtr',{
+      from_name: d.name,
+      from_email: MAIL_FROM,
+      reply_to: MAIL_FROM,
+      to_email: MAIL_TO,
+      to_name: 'מנהל',
+      start_date: 'יום '+WD[kd(d.date).getDay()]+', '+day,
+      day_name: 'יום '+WD[kd(d.date).getDay()],
+      full_date: fmtD(d.date),
+      end_date: day,
+      subject: (isRem?'תזכורת למחר – ':'')+mp.subject,
+      message: mp.body,
+      request_type: typeDesc,
+      type_name: T[d.type],
+      request_time: d.time || 'כל היום',
+      shortage: shT,
+      exception: exT,
+      type: typeDesc,
+      note: noteText,
+      reason: noteText,
+      title: isRem?'תזכורת למחר':'בקשה חדשה לאישור',
+      app_url: currentAppUrl // שולח את הקישור הנוכחי הדינמי
+    },{publicKey:'edHZJcWruFB4Ulcgh'});
+    
+    if(!isRem)toast('נשלח מייל למנהל · סוג: '+typeDesc+' · הערה: '+noteText);
+  }catch(x){lastMailErr=((x&&x.status)?x.status+' ':'')+((x&&(x.text||x.message))||String(x));if(!isRem)mailFallback(d)}
+}
+async function delReq(){
+  const r0=reqs.find(x=>x.id===medit);
+  try{await db.collection('requests').doc(medit).delete();closeM();logEv('מחיקה',r0)}catch(x){$('#me').textContent='אירעה שגיאה במחיקה'}
+}
+function inboxView(){
+  const mine=msgs.filter(m=>m.to===me.id&&m.kind!=='log').sort((a,b)=>b.ts-a.ts);
+  let h='<div class="glass"><div class="row" style="justify-content:space-between;align-items:center;margin:0 0 10px"><b>תיבת הודעות</b>'+(mine.length?'<button onclick="delAllMsgs()">מחיקת כל ההודעות</button>':'')+'</div>';
+  if(!mine.length)h+='<div class="mu">אין הודעות</div>';
+  mine.forEach(m=>{
+    let tail='';
+    if(m.rid){
+      const r=reqs.find(x=>x.id===m.rid);
+      if(!r)tail='<div class="mu" style="margin-top:6px">הבקשה כבר אינה קיימת (נדחתה או בוטלה)</div>';
+      else if(r.status==='pending'&&me.role==='manager')tail='<div class="row"><button class="pri" onclick="decide(\''+m.rid+'\',true)">אישור</button><button onclick="decide(\''+m.rid+'\',false)" style="color:var(--no)">דחייה</button></div>';
+      else if(r.status==='approved')tail='<div class="ok" style="margin-top:6px">הבקשה אושרה</div>';
+    }
+    h+='<div class="msg'+(m.read?'':' un')+'"><div>'+(m.reminder?'<b style="color:var(--late)">⏰ תזכורת למחר · </b>':'')+esc(m.text)+'</div>'+(m.alert?'<div class="alt">⚠ '+esc(m.alert)+'</div>':'')+'<small>'+new Date(m.ts).toLocaleString('he-IL',{dateStyle:'short',timeStyle:'short'})+'</small>'+tail+(m.rid&&me.role==='manager'&&reqs.some(x=>x.id===m.rid&&x.status==='pending')?'':'<div class="row"><button style="color:var(--no)" onclick="delMsg(\''+m.id+'\')">מחיקת הודעה</button></div>')+'</div>';
+  });
+  return h+'</div>';
+}
+async function decide(rid,ok){
+  const r=reqs.find(x=>x.id===rid);if(!r)return;
+  try{
+    if(ok)await db.collection('requests').doc(rid).update({status:'approved'});
+    else await db.collection('requests').doc(rid).delete();
+    logEv(ok?'אישור':'דחייה',r);
+    await db.collection('messages').add({to:r.uid,text:'הבקשה שלך ('+desc(r)+' · '+fmtD(r.date)+') '+(ok?'אושרה ✓':'לא אושרה והוסרה מלוח השנה'),ts:Date.now(),read:false});
+  }catch(x){toast('אירעה שגיאה, נסו שוב')}
+}
+async function quickDel(id){const r0=reqs.find(x=>x.id===id);try{await db.collection('requests').doc(id).delete();closeM();logEv('מחיקה',r0);toast('הבקשה נמחקה')}catch(x){toast('אירעה שגיאה במחיקה')}}
+async function delMsg(id){try{await db.collection('messages').doc(id).delete()}catch(x){toast('אירעה שגיאה במחיקה')}}
+async function delAllMsgs(){try{for(const m of msgs.filter(m=>m.to===me.id&&m.kind!=='log'&&!(m.rid&&me.role==='manager'&&reqs.some(x=>x.id===m.rid&&x.status==='pending'))))await db.collection('messages').doc(m.id).delete();toast('ההודעות נמחקו')}catch(x){toast('אירעה שגיאה במחיקה')}}
+function lockList(){return locks.slice().sort((a,b)=>a.id<b.id?-1:1).map(l=>'<div class="ur"><span>🔒 '+fmtD(l.id)+'</span><button onclick="unlock(\''+l.id+'\')">שחרור</button></div>').join('')||'<div class="mu">אין ימים נעולים</div>'}
+async function unlock(k){try{await db.collection('locks').doc(k).delete()}catch(x){toast('אירעה שגיאה')}}
+async function lockRange(on){
+  const a=$('#lf').value,b=$('#lt').value||a,e=$('#le2');
+  if(!a){e.textContent='יש לבחור תאריך';return}
+  if(b<a){e.textContent='תאריך הסיום מוקדם מההתחלה';return}
+  let d=kd(a);const end=kd(b),ks=[];
+  while(d<=end&&ks.length<92){ks.push(key(d.getFullYear(),d.getMonth(),d.getDate()));d=at(d.getFullYear(),d.getMonth(),d.getDate()+1)}
+  try{for(const k of ks){if(on)await db.collection('locks').doc(k).set({date:k,ts:Date.now()});else if(isLocked(k))await db.collection('locks').doc(k).delete()}e.textContent='';toast(on?'הימים ננעלו':'הנעילה שוחררה')}catch(x){e.textContent='אירעה שגיאה, נסו שוב'}
+}
+function altSection(){
+  const tk=todayK;
+  const list=users.filter(u=>u.role!=='admin'&&(u.shifts||[]).length).sort((a,b)=>a.name.localeCompare(b.name,'he'));
+  let h='<b>סבב שבוע כן / שבוע לא</b><div class="sub">לעובד שעובד שבוע אחד ולא עובד בשבוע שאחריו. בחרו את היום הראשון של אחד משבועות העבודה שלו. מאותו יום הוא עובד 7 ימים, ואז 7 ימים לא, וכך הלאה. בשבועות החופש הוא לא ייספר במשמרות ובחוסרים</div>';
+  if(!list.length)return h+'<div class="mu">אין עובדים עם שעות משמרת</div><div style="height:22px"></div>';
+  list.forEach(u=>{
+    const a=altOf(u),st=a?(altOn(u,tk)?'בסבב · השבוע עובד/ת':'בסבב · השבוע לא עובד/ת'):'עובד/ת כל שבוע';
+    h+='<div class="ur" style="flex-wrap:wrap"><span><b>'+esc(u.name)+'</b> <span class="mu">· '+st+'</span></span><span class="row" style="margin:0;align-items:center"><input type="date" id="alt_'+u.id+'" value="'+esc(a)+'" style="width:auto;margin:0"><button class="pri" onclick="saveAlt(\''+u.id+'\')">שמירה</button>'+(a?'<button onclick="clearAlt(\''+u.id+'\')">ביטול סבב</button>':'')+'</span></div>';
+  });
+  return h+'<div class="err" id="ale"></div><div style="height:22px"></div>';
+}
+async function saveAlt(id){
+  const v=$('#alt_'+id).value,e=$('#ale');
+  if(!v){e.textContent='יש לבחור תאריך שבו מתחיל שבוע עבודה';return}
+  try{await db.collection('users').doc(id).update({alt:v});e.textContent='';toast('הסבב נשמר')}catch(x){e.textContent='אירעה שגיאה בשמירה, נסו שוב'}
+}
+async function clearAlt(id){
+  try{await db.collection('users').doc(id).update({alt:''});$('#ale').textContent='';toast('העובד חזר לעבוד כל שבוע')}catch(x){$('#ale').textContent='אירעה שגיאה, נסו שוב'}
+}
+function staffView(){
+  const adm=me.role==='admin';
+  let h='<div class="glass" id="sf"><b>נעילת ימים</b><div class="sub">בחרו תאריך או טווח תאריכים. בימים נעולים לא ניתן להגיש בקשות חדשות (עד 3 חודשים בכל פעולה)</div><div class="row"><div style="flex:1;min-width:130px"><label>מתאריך</label><input id="lf" type="date"></div><div style="flex:1;min-width:130px"><label>עד תאריך</label><input id="lt" type="date"></div></div><div class="err" id="le2"></div><div class="row" style="margin-bottom:8px"><button class="pri" onclick="lockRange(true)">🔒 נעילה</button><button onclick="lockRange(false)">🔓 שחרור</button></div>'+lockList()+'<div style="height:22px"></div>'+altSection();
+  if(adm){
+    h+=(FB?statusBanner():'');
+    h+='<b>הוספת עובד</b><div style="height:8px"></div><label>שם משתמש</label><input id="sn"><label>סיסמה</label><input id="sp"><div class="err" id="se"></div><button class="pri" onclick="addU()">הוספת עובד</button><div style="height:22px"></div><b>משתמשים</b><div class="sub">המנהל המאשר מקבל ומאשר את כל בקשות העובדים</div>';
+    const ord={admin:0,manager:1,employee:2};
+    users.slice().sort((a,b)=>ord[a.role]-ord[b.role]||a.name.localeCompare(b.name,'he')).forEach(u=>{
+      h+='<div class="ur"><span><b>'+esc(u.name)+'</b> <span class="mu">· '+RL[u.role]+(FB?(u.pass?' · טרם התחבר/ה בגרסה המאובטחת':' · 🔒 מאובטח'):' · סיסמה: '+esc(u.pass))+'</span></span><span class="row" style="margin:0"><button onclick="editU(\''+u.id+'\')">עריכה</button>'+(u.role==='employee'?'<button onclick="setMgr(\''+u.id+'\')">הגדר כמנהל מאשר</button><button onclick="delU(\''+u.id+'\')" style="color:var(--no)">'+(armed===u.id?'לחצו שוב למחיקה':'מחיקה')+'</button>':'')+'</span></div>';
+    });
+    if(FB)h+=botSection();
+  }
+  return h+'</div>';
+}
+function editU(id){
+  const u=users.find(x=>x.id===id);if(!u)return;
+  $('#modal').innerHTML='<div class="ov" onclick="if(event.target===this)closeM()"><div class="md"><h3>עריכת משתמש</h3><div class="sub">'+RL[u.role]+'</div><label>שם משתמש</label><input id="en" value="'+esc(u.name)+'"><label>'+(FB?'סיסמה חדשה (השאירו ריק ללא שינוי)':'סיסמה')+'</label><input id="ep" '+(FB?'':'value="'+esc(u.pass)+'"')+'><label>שעות עבודה (ראשון–חמישי)</label><input id="es" dir="ltr" placeholder="10:00-14:00, 18:00-22:00" value="'+esc((u.shifts||[]).join(', '))+'"><div class="err" id="ee2"></div><div class="row"><button class="pri" onclick="saveU(\''+id+'\')">שמירה</button><button onclick="closeM()">ביטול</button></div></div></div>';
+}
+async function saveU(id){
+  const n=$('#en').value.trim(),p=$('#ep').value.trim(),e=$('#ee2');
+  if(!n||(!p&&!FB)){e.textContent='יש למלא שם וסיסמה';return}
+  if(users.some(u=>u.name===n&&u.id!==id)){e.textContent='שם המשתמש כבר קיים';return}
+  try{
+    if(FB)await fbUserSave(users.find(x=>x.id===id),n,p);
+    await db.collection('users').doc(id).update(FB?{name:n,shifts:parseSh($('#es').value)}:{name:n,pass:p,shifts:parseSh($('#es').value)});
+    for(const r of reqs.filter(x=>x.uid===id&&x.name!==n))await db.collection('requests').doc(r.id).update({name:n});
+    closeM();toast('הפרטים נשמרו');
+  }catch(x){e.textContent='אירעה שגיאה, נסו שוב'}
+}
+async function setMgr(id){
+  try{
+    for(const u of users.filter(x=>x.role==='manager'&&x.id!==id)){await db.collection('users').doc(u.id).update({role:'employee'});if(FB)await setUidRole(u.id,'employee')}
+    await db.collection('users').doc(id).update({role:'manager'});
+    if(FB)await setUidRole(id,'manager');
+    for(const r of reqs.filter(x=>x.status==='pending'&&x.uid!==id))await db.collection('messages').add({to:id,rid:r.id,text:r.name+' הגיש/ה בקשה: '+desc(r)+' · '+fmtD(r.date),ts:Date.now(),read:false});
+    toast('המנהל המאשר עודכן');
+  }catch(x){toast('אירעה שגיאה, נסו שוב')}
+}
+async function saveMail(){
+  const v=$('#em').value.trim();
+  if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v)){$('#ee').textContent='כתובת מייל לא תקינה';return}
+  try{await db.collection('users').doc(me.id).update({email:v});$('#ee').textContent='';toast('המייל נשמר')}catch(x){$('#ee').textContent='אירעה שגיאה, נסו שוב'}
+}
+async function addU(){
+  const n=$('#sn').value.trim(),p=$('#sp').value.trim(),e=$('#se');
+  if(!n||!p){e.textContent='יש למלא שם משתמש וסיסמה';return}
+  if(users.some(u=>u.name===n)){e.textContent='שם המשתמש כבר קיים';return}
+  try{if(FB){const ref=db.collection('users').doc();await fbAccount(n,p,ref.id,'employee');await ref.set({name:n,role:'employee'})}else await db.collection('users').add({name:n,pass:p,role:'employee'});$('#sn').value='';$('#sp').value='';e.textContent='';toast('העובד נוסף')}catch(x){e.textContent='אירעה שגיאה, נסו שוב'}
+}
+async function delU(id){
+  if(armed!==id){armed=id;render();return}
+  armed='';
+  try{
+    for(const r of reqs.filter(x=>x.uid===id))await db.collection('requests').doc(r.id).delete();
+    if(FB){const u=users.find(x=>x.id===id);if(u){const h=await sha(u.name),d=await db.collection('logins').doc(h).get();if(d.exists){await db.collection('uidmap').doc(d.data().uid).delete();await db.collection('logins').doc(h).delete()}}}
+    await db.collection('users').doc(id).delete();
+  }catch(x){toast('אירעה שגיאה, נסו שוב')}
+}
+setupPwa();
+setInterval(checkReminders,60000);setTimeout(checkReminders,4000);
+init();
+</script>
+</body>
+</html>
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>ניהול חופשות עובדים</title>
+<meta name="theme-color" content="#4a5cf0">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="חופשות">
+<link rel="preconnect" href="https://firestore.googleapis.com">
+<link rel="preconnect" href="https://identitytoolkit.googleapis.com">
+<link rel="preconnect" href="https://api.emailjs.com">
+<link rel="preconnect" href="https://www.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;500;700&display=swap" rel="stylesheet">
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script>
+// === הדביקו כאן את הגדרות Firebase שלכם (ראו README) ===
+window.FIREBASE_CONFIG={apiKey:"AIzaSyA5-ySBUkH4ZO9ZqMsc3MCgrbo_17u8HfA",authDomain:"employee-vacations-3a755.firebaseapp.com",projectId:"employee-vacations-3a755",storageBucket:"employee-vacations-3a755.firebasestorage.app",messagingSenderId:"1079736132859",appId:"1:1079736132859:web:1f5abc635c59623a023c5e"};
+</script>
+<script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4.4.1/dist/email.min.js"></script>
+<style>
+:root{--bg:#eef1f8;--bg2:radial-gradient(900px 500px at 85% -10%,#c9d8ff 0,transparent 60%),radial-gradient(700px 500px at 0% 100%,#e3d0ff 0,transparent 60%);--gl:rgba(255,255,255,.72);--bd:rgba(40,60,110,.14);--tx:#141a2c;--mu:#5d6a86;--ac:#4a5cf0;--ac2:#00a6c8;--vac:#2a7de1;--late:#e08a00;--early:#9b4dde;--ok:#1f9d63;--no:#d6453a;--sh:0 8px 30px rgba(40,60,120,.12);color-scheme:light;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#070b16;--bg2:radial-gradient(900px 500px at 85% -10%,rgba(80,100,255,.28) 0,transparent 60%),radial-gradient(700px 500px at 0% 100%,rgba(0,220,255,.16) 0,transparent 60%);--gl:rgba(22,30,54,.62);--bd:rgba(150,175,255,.18);--tx:#e9eeff;--mu:#93a0c4;--ac:#7b8cff;--ac2:#35e0ff;--vac:#4da3ff;--late:#ffb53d;--early:#c28bff;--ok:#3de09b;--no:#ff6b5e;--sh:0 8px 30px rgba(0,0,0,.45);color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#070b16;--bg2:radial-gradient(900px 500px at 85% -10%,rgba(80,100,255,.28) 0,transparent 60%),radial-gradient(700px 500px at 0% 100%,rgba(0,220,255,.16) 0,transparent 60%);--gl:rgba(22,30,54,.62);--bd:rgba(150,175,255,.18);--tx:#e9eeff;--mu:#93a0c4;--ac:#7b8cff;--ac2:#35e0ff;--vac:#4da3ff;--late:#ffb53d;--early:#c28bff;--ok:#3de09b;--no:#ff6b5e;--sh:0 8px 30px rgba(0,0,0,.45);color-scheme:dark}
+*{box-sizing:border-box}html,body{margin:0;height:auto}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{background:var(--bg);background-image:var(--bg2);background-attachment:fixed;color:var(--tx);font-family:Rubik,"Segoe UI",Arial,sans-serif;font-size:15px;line-height:1.5;min-height:100vh}
+.wrap{max-width:1120px;margin:0 auto;padding:16px}
+.glass{background:var(--gl);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border:1px solid var(--bd);border-radius:20px;box-shadow:var(--sh);padding:18px}
+.top{display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between;margin-bottom:14px}
+.brand{font-size:22px;font-weight:700;background:linear-gradient(90deg,var(--ac),var(--ac2));-webkit-background-clip:text;background-clip:text;color:transparent}
+.who{display:flex;align-items:center;gap:10px;color:var(--mu);font-size:14px}
+.av{width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,var(--ac),var(--ac2));color:#fff;display:grid;place-items:center;font-weight:700}
+button{font:inherit;cursor:pointer;border-radius:12px;border:1px solid var(--bd);background:transparent;color:var(--tx);padding:9px 16px;transition:.15s}
+button:hover{border-color:var(--ac);transform:translateY(-1px)}
+.pri{background:linear-gradient(90deg,var(--ac),var(--ac2));border:none;color:#fff;font-weight:500}
+.seg{display:inline-flex;gap:4px;padding:4px;border:1px solid var(--bd);border-radius:16px;background:var(--gl);margin-bottom:14px;flex-wrap:wrap}
+.seg button{border:none;padding:8px 18px}.seg button.on{background:linear-gradient(90deg,var(--ac),var(--ac2));color:#fff}
+.bdg{background:var(--no);color:#fff;border-radius:20px;font-size:11px;padding:1px 7px;margin-inline-start:5px}
+.nav{display:flex;align-items:center;gap:8px;margin-bottom:12px}
+.ttl{flex:1;text-align:center}.ttl b{font-size:22px;display:block}.ttl span{color:var(--mu);font-size:13px}
+.leg{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--mu);margin-bottom:10px}
+.leg i{display:inline-block;width:10px;height:10px;border-radius:50%;margin-inline-end:5px}
+.grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:6px}
+.wd{text-align:center;color:var(--mu);font-size:12px;padding:4px 0}
+.day{min-height:104px;border:1px solid var(--bd);border-radius:14px;padding:6px;cursor:pointer;background:var(--gl);overflow:hidden;transition:.15s}
+.day:hover{border-color:var(--ac2);box-shadow:0 0 0 1px var(--ac2)}
+.day.blank{border:none;background:none;cursor:default;box-shadow:none}
+.day.today{border-color:var(--ac);box-shadow:0 0 0 2px var(--ac)}
+.day.lk{background:repeating-linear-gradient(135deg,transparent 0 8px,var(--bd) 8px 9px)}
+.n{display:flex;justify-content:space-between;align-items:baseline;font-weight:700;margin-bottom:3px}
+.h{font-weight:500;font-size:12px;color:var(--ac2)}
+.chip{font-size:11px;border-radius:8px;padding:1px 6px;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#fff}
+.t-vac{background:var(--vac)}.t-late{background:var(--late)}.t-early{background:var(--early)}
+.chip.p{background:transparent;border:1px dashed currentColor}
+.chip.p.t-vac{color:var(--vac)}.chip.p.t-late{color:var(--late)}.chip.p.t-early{color:var(--early)}
+.chip.own{cursor:pointer;font-weight:700}.more{font-size:11px;color:var(--mu);margin-top:2px}
+.ov{position:fixed;inset:0;background:rgba(5,8,18,.6);backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center;padding:14px;z-index:50}
+.md{background:var(--bg);background-image:var(--bg2);border:1px solid var(--bd);border-radius:22px;max-width:460px;width:100%;max-height:92vh;overflow:auto;padding:22px;box-shadow:var(--sh)}
+.md h3{margin:0}.sub{color:var(--mu);font-size:13px;margin:2px 0 12px}
+.tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:10px 0}
+.tile{display:flex;flex-direction:column;align-items:center;gap:4px;padding:14px 6px;font-size:13px}
+.tile b{font-size:24px;font-weight:400}.tile.on{color:#fff;border-color:transparent}
+.tile.on.vac{background:var(--vac)}.tile.on.late{background:var(--late)}.tile.on.early{background:var(--early)}
+.qt{display:flex;gap:6px;flex-wrap:wrap;margin:-4px 0 10px}.qt button{padding:4px 10px;font-size:13px}
+.ex{font-size:13px;border-top:1px solid var(--bd);padding:8px 0;display:flex;justify-content:space-between;gap:8px;align-items:center}
+input{font:inherit;width:100%;padding:11px 12px;border:1px solid var(--bd);border-radius:12px;background:var(--gl);color:var(--tx);margin:4px 0 10px}
+label{font-size:13px;color:var(--mu)}
+select{font:inherit;width:100%;padding:11px 12px;border:1px solid var(--bd);border-radius:12px;background:var(--gl);color:var(--tx);margin:4px 0 10px}
+.chip.cv{background:var(--ok)}
+#pop{position:fixed;top:calc(12px + env(safe-area-inset-top,0px));left:0;right:0;display:flex;justify-content:center;z-index:70;padding:0 12px;pointer-events:none}
+.popc{pointer-events:auto;max-width:460px;width:100%;background:var(--bg);background-image:var(--bg2);border:2px solid var(--late);border-radius:16px;padding:14px 16px;box-shadow:var(--sh)}.popt{margin:8px 0;font-size:14px}
+.tlw{padding:0 14px}.tl{position:relative;height:28px;background:var(--bd);border-radius:8px;overflow:hidden;direction:ltr}
+.tl i{position:absolute;top:0;bottom:0;display:flex;align-items:center;justify-content:center;font-style:normal;font-size:11px;font-weight:700;color:#0b3b24}
+.tl i.g{background:#7fd6a4}.tl i.g2{background:#8fc5ff;color:#0b2a4d}.tl i.r{background:#f5a9a1;color:#6b1a12}
+.ax{position:relative;height:16px;margin:3px 14px 0;direction:ltr}.ax span{position:absolute;transform:translateX(-50%);font-size:10px;color:var(--mu)}
+.sf{border:1px solid var(--bd);border-radius:14px;padding:12px 14px;margin:8px 0 12px;background:var(--gl)}.sfh{display:flex;justify-content:space-between;margin-bottom:8px}
+.bm{font-size:13px;margin-top:6px}.bm.bad{color:var(--no);font-weight:700}.bm.good{color:var(--ok);font-weight:700}
+.hol{font-size:11px;line-height:1.3;margin-bottom:2px;color:var(--mu)}.hol.yt{color:var(--no);font-weight:700}.hol.cm{color:var(--late);font-weight:700}.hol.fast{color:var(--early);font-weight:700}.hol.rc{color:var(--ac2)}
+.day.sat{background:color-mix(in srgb,var(--bd) 28%,var(--gl))}.day.ytd{background:color-mix(in srgb,var(--no) 12%,var(--gl))}
+@media(max-width:640px){.hol{font-size:9px}}
+.row{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px}.err{color:var(--no);font-size:13px;min-height:18px}
+.lockb{background:color-mix(in srgb,var(--no) 14%,transparent);border:1px solid var(--no);border-radius:12px;padding:10px;margin:8px 0;font-size:14px}
+.login{max-width:380px;margin:9vh auto 0}.login h1{margin:0 0 4px;font-size:28px}
+.msg{border:1px solid var(--bd);border-radius:14px;padding:12px;margin-bottom:10px}
+.msg.un{border-inline-start:4px solid var(--ac2)}.msg small{color:var(--mu)}
+.ok{color:var(--ok)}.mu{color:var(--mu)}
+.ur{display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--bd);padding:9px 0;gap:8px}
+.load{text-align:center;color:var(--mu);padding:70px 0}
+#toast{position:fixed;bottom:calc(20px + env(safe-area-inset-bottom,0px));left:50%;transform:translate(-50%,30px);background:var(--tx);color:var(--bg);padding:10px 18px;border-radius:14px;opacity:0;transition:.25s;z-index:80;font-size:14px;max-width:90vw;text-align:center;pointer-events:none}
+#toast.on{opacity:1;transform:translate(-50%,0)}
+.alt{background:color-mix(in srgb,var(--late) 18%,transparent);border:1px solid var(--late);border-radius:10px;padding:9px 12px;margin-top:8px;font-weight:700;font-size:14px}.shn{font-size:10px;font-weight:500}
+@media(max-width:640px){.day{min-height:74px;padding:3px;border-radius:10px}.chip{font-size:10px;padding:0 3px}.h{font-size:10px}.wrap{padding:10px}.glass{padding:12px}.grid{gap:3px}}
+
+/* ---- calendar (v2) ---- */
+.cal{padding:16px 14px 14px}
+.cl-head{display:flex;align-items:center;gap:10px;margin-bottom:6px}
+.cl-title{flex:1;text-align:center;line-height:1.2}
+.cl-title b{display:block;font-size:26px;font-weight:700;letter-spacing:-.3px}
+.cl-title b span{color:var(--ac);font-weight:500}
+.cl-title small{display:block;color:var(--mu);font-size:13px;margin-top:3px}
+.cl-arr{width:42px;height:42px;padding:0;border-radius:50%;font-size:22px;line-height:1;display:grid;place-items:center;background:var(--gl)}
+.cl-bar{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin:10px 0 12px}
+.cl-today{padding:6px 16px;border-radius:999px;font-size:13px;background:color-mix(in srgb,var(--ac) 10%,transparent);border-color:color-mix(in srgb,var(--ac) 35%,transparent);color:var(--ac);font-weight:500}
+.cl-leg{display:flex;gap:12px;flex-wrap:wrap;font-size:12px;color:var(--mu)}
+.cl-leg span{display:inline-flex;align-items:center;gap:5px}
+.cl-leg i{width:9px;height:9px;border-radius:50%;display:inline-block}
+.cl-leg i.pend{background:transparent;border:1.5px dashed var(--mu)}
+.cl-leg i.gap{background:var(--no)}
+.t-vac{--c:var(--vac)}.t-late{--c:var(--late)}.t-early{--c:var(--early)}
+.cl-leg i.t-vac,.cl-leg i.t-late,.cl-leg i.t-early{background:var(--c)}
+.cl-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));border:1px solid var(--bd);border-radius:16px;overflow:hidden;background:var(--bd);gap:1px}
+.cl-wd{background:color-mix(in srgb,var(--gl) 70%,var(--bd));text-align:center;font-size:12px;font-weight:500;color:var(--mu);padding:8px 0}
+.cl-wd.sat{color:var(--ac)}
+.cl-wd .sm{display:none}
+.cl-day{position:relative;background:var(--bg);min-height:112px;padding:7px 8px;cursor:pointer;transition:background .15s;display:flex;flex-direction:column;gap:3px;min-width:0}
+.cl-day:hover{background:color-mix(in srgb,var(--ac) 6%,var(--bg))}
+.cl-blank{background:color-mix(in srgb,var(--bd) 15%,var(--bg));cursor:default}
+.cl-blank:hover{background:color-mix(in srgb,var(--bd) 15%,var(--bg))}
+.cl-day.rest{background:color-mix(in srgb,var(--ac) 5%,var(--bg))}
+.cl-day.past{opacity:.5}
+.cl-day.lk{background-image:repeating-linear-gradient(135deg,transparent 0 9px,color-mix(in srgb,var(--mu) 14%,transparent) 9px 10px)}
+.cl-top{display:flex;justify-content:space-between;align-items:center}
+.cl-h{font-size:17px;font-weight:700;min-width:30px;height:30px;padding:0 4px;display:grid;place-items:center;border-radius:999px}
+.cl-g{font-size:11px;color:var(--mu);font-variant-numeric:tabular-nums}
+.cl-day.now .cl-h{background:linear-gradient(135deg,var(--ac),var(--ac2));color:#fff}
+.cl-day.now{box-shadow:inset 0 0 0 2px var(--ac)}
+.cl-meta{display:flex;align-items:center;gap:6px}.cl-flags{display:flex;gap:4px;align-items:center;font-size:11px}
+.cl-gap{width:8px;height:8px;border-radius:50%;background:var(--no);box-shadow:0 0 0 3px color-mix(in srgb,var(--no) 20%,transparent)}
+.cl-hol{font-size:11px;line-height:1.25;color:var(--mu);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cl-hol.yt{color:var(--no);font-weight:700}.cl-hol.cm{color:var(--late);font-weight:500}.cl-hol.fast{color:var(--early)}.cl-hol.rc{color:var(--ac2)}
+.cl-evs{display:flex;flex-direction:column;gap:3px;margin-top:3px}
+.cl-ev{font-size:11.5px;line-height:1.35;padding:2px 6px;border-radius:6px;background:color-mix(in srgb,var(--c) 14%,var(--bg));border-inline-start:3px solid var(--c);color:var(--tx);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cl-ev em{font-style:normal;color:var(--mu);font-size:10.5px}
+.cl-ev.p{background:transparent;border:1px dashed var(--c);border-inline-start:3px dashed var(--c)}
+.cl-ev.own{font-weight:700}
+.cl-more{font-size:11px;color:var(--mu);padding-inline-start:4px}
+.cl-dots{display:none}
+.cl-ag{margin-top:14px;padding:14px}
+.cl-agh{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px}
+.cl-row{display:flex;align-items:center;gap:12px;padding:10px 4px;border-top:1px solid var(--bd);cursor:pointer;border-radius:10px}
+.cl-row:hover{background:color-mix(in srgb,var(--ac) 5%,transparent)}
+.cl-row.past{opacity:.5}
+.cl-date{width:58px;flex:none;text-align:center;line-height:1.2}
+.cl-date b{display:block;font-size:18px}
+.cl-date span{font-size:11px;color:var(--mu)}
+.cl-info{flex:1;min-width:0}
+.cl-sub{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:2px}
+.cl-pill{font-size:12px;padding:1px 9px;border-radius:999px;background:color-mix(in srgb,var(--c) 15%,transparent);color:var(--c);font-weight:500}
+.cl-warn{font-size:12px;color:var(--no)}
+.cl-dev{font-size:11.5px;color:var(--mu);margin-top:3px}
+.hs{display:flex;align-items:center;gap:12px;padding:10px 2px;border-top:1px solid var(--bd)}
+.hs-a{flex:none;font-size:12px;font-weight:500;padding:3px 10px;border-radius:999px;min-width:52px;text-align:center}
+.hs-a.ok{background:color-mix(in srgb,var(--ok) 14%,transparent);color:var(--ok)}
+.hs-a.up{background:color-mix(in srgb,var(--ac) 12%,transparent);color:var(--ac)}
+.hs-a.no{background:color-mix(in srgb,var(--no) 12%,transparent);color:var(--no)}
+.hs-b{flex:1;min-width:0}.hs-m{font-size:12px;margin-top:2px}
+.hsw{margin:0 0 12px;display:flex;width:fit-content;max-width:100%}
+.hs-f{background:color-mix(in srgb,var(--no) 5%,transparent);border-radius:10px}
+.acc-sum{display:flex;gap:14px;flex-wrap:wrap;font-size:13px;margin:4px 0 10px;padding:10px 12px;border-radius:12px;background:color-mix(in srgb,var(--ac) 6%,transparent)}
+.acc-sum .bad{color:var(--no)}
+.acc-wp{font-size:11px;padding:1px 8px;border-radius:999px;background:color-mix(in srgb,var(--late) 16%,transparent);color:var(--late)}
+.acc-unk{font-size:11px;padding:1px 8px;border-radius:999px;background:color-mix(in srgb,var(--no) 14%,transparent);color:var(--no)}
+.cl-st{font-size:12px;padding:3px 10px;border-radius:999px;flex:none}
+.cl-st.ok{background:color-mix(in srgb,var(--ok) 14%,transparent);color:var(--ok)}
+.cl-st.pd{border:1px dashed var(--mu);color:var(--mu)}
+@media(max-width:640px){
+ .cal{padding:12px 8px 10px}
+ .cl-title b{font-size:22px}
+ .cl-wd .lg{display:none}.cl-wd .sm{display:inline}
+ .cl-grid{border-radius:12px}
+ .cl-day{min-height:62px;padding:4px 3px;gap:1px;align-items:center}
+ .cl-top{flex-direction:column;gap:0}
+ .cl-h{font-size:15px;min-width:26px;height:26px}
+ .cl-g{font-size:10px;line-height:1}
+ .cl-meta{display:contents}.cl-flags{position:absolute;top:3px;left:3px;font-size:9px}
+ .cl-gap{width:6px;height:6px;box-shadow:none}
+ .cl-hol{font-size:8.5px;max-width:100%;text-align:center}
+ .cl-evs{display:none}
+ .cl-dots{display:flex;gap:3px;justify-content:center;flex-wrap:wrap;margin-top:auto;padding-bottom:2px}
+ .cl-dots i{width:7px;height:7px;border-radius:50%;background:var(--c)}
+ .cl-dots i.p{background:transparent;box-shadow:inset 0 0 0 1.5px var(--c)}
+ .cl-dots b{font-size:9px;line-height:7px;color:var(--mu)}
+ .cl-leg{gap:9px;font-size:11px}
+}
+</style>
+</head>
+<body>
+<div class="wrap" id="app"><div class="load">טוען…</div></div>
+<div id="modal"></div><div id="toast"></div>
+<script>
+const $=s=>document.querySelector(s);
+const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const T={vac:'חופשה',late:'הגעה מאוחרת',early:'יציאה מוקדמת'};
+const RL={admin:'מנהל אתר',manager:'מנהל מאשר',employee:'עובד'};
+const IC={vac:'🌴',late:'⏰',early:'🏃'};
+const SH={vac:'חופש',late:'מגיע',early:'יוצא'};
+const WD=['ראשון','שני','שלישי','רביעי','חמישי','שישי','שבת'];
+const hf=new Intl.DateTimeFormat('he-u-ca-hebrew',{day:'numeric',month:'long',year:'numeric'});
+const hn=new Intl.DateTimeFormat('en-u-ca-hebrew',{day:'numeric'});
+const hp=d=>{const o={};hf.formatToParts(d).forEach(p=>o[p.type]=p.value);return o};
+function gem(n){
+  const O=['','א','ב','ג','ד','ה','ו','ז','ח','ט'],Tn=['','י','כ','ל'];
+  const s=n===15?'טו':n===16?'טז':Tn[Math.floor(n/10)]+O[n%10];
+  return s.length>1?s.slice(0,-1)+'״'+s.slice(-1):s+'׳';
+}
+const hday=d=>gem(parseInt(hn.format(d)));
+const at=(y,m,d)=>new Date(y,m,d,12);
+const key=(y,m,d)=>y+'-'+String(m+1).padStart(2,'0')+'-'+String(d).padStart(2,'0');
+const kd=k=>{const[a,b,c]=k.split('-').map(Number);return at(a,b-1,c)};
+const fmtD=k=>{const d=kd(k),p=hp(d);return 'יום '+WD[d.getDay()]+', '+d.getDate()+' ב'+d.toLocaleDateString('he-IL',{month:'long'})+' '+d.getFullYear()+' · '+hday(d)+' ב'+p.month+' '+p.year};
+const desc=r=>T[r.type]+(r.time?' ('+(r.type==='late'?'מגיע ב־':'יוצא ב־')+r.time+')':'');
+let auth=null,dataOn=0,dbErr="",FB=0,seeded=0,db=null,users=[],reqs=[],msgs=[],locks=[],covers=[],me=null,view='',tab='cal',armed='';
+let ready=0,tm=new Date(),Y=tm.getFullYear(),M=tm.getMonth(),mdate='',mt='',medit='';
+const todayK=key(tm.getFullYear(),tm.getMonth(),tm.getDate());
+const ls={get(){try{return localStorage.getItem('vm_uid')}catch(e){return null}},set(v){try{v?localStorage.setItem('vm_uid',v):localStorage.removeItem('vm_uid')}catch(e){}}};
+let shSeeded=0;
+const tm2=t=>{const p=t.split(':').map(Number);return p[0]*60+p[1]};
+const m2t=m=>String(Math.floor(m/60)).padStart(2,'0')+':'+String(m%60).padStart(2,'0');
+// סבב שבוע כן / שבוע לא. התאריך הוא יום שלישי שפותח שבוע עבודה. השבוע מיום שלישי עד יום שני
+const ALT0={'חן':'2026-11-10'};
+const altOf=u=>u.alt!==undefined?(u.alt||''):(ALT0[u.name]||'');
+const altOn=(u,k)=>{const a=altOf(u);if(!a)return true;const w=Math.floor(Math.round((kd(k)-kd(a))/864e5)/7);return ((w%2)+2)%2===0};
+const shOf=(u,k)=>kd(k).getDay()<=4&&altOn(u,k)?(u.shifts||[]).map(x=>x.split('-').map(tm2)):[];
+const rng=l=>l.map(x=>m2t(x[0])+'–'+m2t(x[1])).join(' ו־');
+const fromTo=l=>l.map(x=>'משעה '+m2t(x[0])+' עד '+m2t(x[1])).join(' וגם ');
+function absOf(r,u){
+  const o=[];
+  shOf(u,r.date).forEach(([a,b])=>{
+    if(r.type==='vac')o.push([a,b]);
+    else{const t=tm2(r.time);if(r.type==='late'){if(t>a)o.push([a,Math.min(t,b)])}else if(t<b)o.push([Math.max(t,a),b])}
+  });
+  return o;
+}
+function missingOf(r){const u=users.find(x=>x.id===r.uid);return u?rng(absOf(r,u)):''}
+function analyze(d){
+  const day=users.map(u=>({u:u,sh:shOf(u,d.date)})).filter(x=>x.sh.length);
+  const me2=users.find(x=>x.id===d.uid),missing=me2?absOf(d,me2):[],viol=[];
+  if(!day.length)return{missing:missing,viol:viol};
+  const ab={};
+  reqs.filter(x=>x.date===d.date&&x.id!==d.rid).concat([d]).forEach(r=>{const u=users.find(x=>x.id===r.uid);if(u)(ab[u.id]=ab[u.id]||[]).push(...absOf(r,u))});
+  const pts=new Set([1080]);
+  day.forEach(x=>x.sh.forEach(([a,b])=>{pts.add(a);pts.add(b)}));
+  Object.values(ab).forEach(l=>l.forEach(([a,b])=>{pts.add(a);pts.add(b)}));
+  covers.filter(c=>c.date===d.date).forEach(c=>{pts.add(tm2(c.from));pts.add(tm2(c.to))});
+  const P=[...pts].sort((a,b)=>a-b),all=[].concat(...day.map(x=>x.sh)),lo=Math.min(...all.map(x=>x[0])),hi=Math.max(...all.map(x=>x[1]));
+  for(let i=0;i<P.length-1;i++){
+    const a=P[i],b=P[i+1];if(a<lo||b>hi)continue;
+    const need=a>=1080?3:2;
+    const have=day.filter(x=>x.sh.some(([s1,e1])=>s1<=a&&e1>=b)&&!(ab[x.u.id]||[]).some(([s1,e1])=>s1<=a&&e1>=b)).length+covers.filter(c=>c.date===d.date&&tm2(c.from)<=a&&tm2(c.to)>=b).length;
+    if(have<need){const l=viol[viol.length-1];if(l&&l[1]===a&&l[2]===have&&l[3]===need)l[1]=b;else viol.push([a,b,have,need])}
+  }
+  return{missing:missing,viol:viol};
+}
+const violText=an=>an.viol.map(([a,b,h,n])=>m2t(a)+'–'+m2t(b)+' ('+h+' עובדים במקום '+n+')').join(', ');
+function alertText(an){const p=[];if(an.missing.length)p.push('חסר עובד '+fromTo(an.missing));if(an.viol.length)p.push('חריגה מדרישת הכיסוי: '+violText(an));return p.join(' · ')}
+let bdate=todayK;
+function bnav(n){if(n===0)bdate=todayK;else{const d=kd(bdate);d.setDate(d.getDate()+n);bdate=key(d.getFullYear(),d.getMonth(),d.getDate())}render()}
+function covSegs(k,day,lo,hi){
+  const ab={};
+  reqs.filter(r=>r.date===k).forEach(r=>{const u=users.find(x=>x.id===r.uid);if(u)(ab[u.id]=ab[u.id]||[]).push(...absOf(r,u))});
+  const cv=covers.filter(c=>c.date===k),pts=new Set([1080,lo,hi]);
+  day.forEach(x=>x.sh.forEach(([a,b])=>{pts.add(a);pts.add(b)}));
+  Object.values(ab).forEach(l=>l.forEach(([a,b])=>{pts.add(a);pts.add(b)}));
+  cv.forEach(c=>{pts.add(tm2(c.from));pts.add(tm2(c.to))});
+  const P=[...pts].filter(p=>p>=lo&&p<=hi).sort((a,b)=>a-b),out=[];
+  for(let i=0;i<P.length-1;i++){
+    const a=P[i],b=P[i+1],need=a>=1080?3:2;
+    const have=day.filter(x=>x.sh.some(([s1,e1])=>s1<=a&&e1>=b)&&!(ab[x.u.id]||[]).some(([s1,e1])=>s1<=a&&e1>=b)).length+cv.filter(c=>tm2(c.from)<=a&&tm2(c.to)>=b).length;
+    out.push({a:a,b:b,have:have,need:need});
+  }
+  return out;
+}
+function shiftBoard(k){
+  const day=users.map(u=>({u:u,sh:shOf(u,k)})).filter(x=>x.sh.length);
+  const wkd=kd(k).getDay()<=4,base=u=>(u.shifts||[]).map(x=>x.split('-').map(tm2));
+  const off=wkd?users.filter(u=>u.role!=='admin'&&!shOf(u,k).length&&base(u).length&&altOf(u)).map(u=>({u:u,sh:base(u)})):[];
+  if(!day.length&&!off.length)return '<div class="mu" style="padding:10px 0">אין משמרות ביום זה</div>';
+  const all=[].concat(...day.map(x=>x.sh),...off.map(x=>x.sh)),lo=Math.min(...all.map(x=>x[0])),hi=Math.max(...all.map(x=>x[1])),T=hi-lo;
+  const wk=[].concat(...day.map(x=>x.sh)),cl=wk.length?Math.min(...wk.map(x=>x[0])):lo,ch=wk.length?Math.max(...wk.map(x=>x[1])):hi;
+  const seg=(a,b,c,t)=>{a=Math.max(a,lo);b=Math.min(b,hi);return b>a?'<i class="'+c+'" style="left:'+((a-lo)/T*100).toFixed(2)+'%;width:'+((b-a)/T*100).toFixed(2)+'%">'+(t||'')+'</i>':''};
+  let ax='<div class="ax">';for(let t=lo;t<=hi;t+=120)ax+='<span style="left:'+((t-lo)/T*100).toFixed(2)+'%">'+m2t(t)+'</span>';ax+='</div>';
+  const cs=day.length?covSegs(k,day,cl,ch):[],bad=cs.filter(x=>x.have<x.need);
+  let h='<label>כיסוי כללי</label><div class="sf"><div class="tlw"><div class="tl">'+cs.map(x=>seg(x.a,x.b,x.have>=x.need?'g':'r',x.have+'/'+x.need)).join('')+'</div></div>'+ax+(bad.length?'<div class="bm bad">⚠ חסרים עובדים: '+bad.map(x=>m2t(x.a)+'–'+m2t(x.b)+' ('+x.have+' מתוך '+x.need+')').join(', ')+'</div>':'<div class="bm good">✓ הכיסוי מלא לאורך כל היום</div>')+'<div class="mu" style="font-size:12px;margin-top:4px">נדרש: 2 עובדים, ומשעה 18:00 3 עובדים</div></div><label>לפי עובד</label>';
+  const rd=reqs.filter(r=>r.date===k);
+  const rows=day.map(x=>Object.assign({off:0},x)).concat(off.map(x=>Object.assign({off:1},x))).sort((a,b)=>Math.min(...a.sh.map(s=>s[0]))-Math.min(...b.sh.map(s=>s[0]))||a.u.name.localeCompare(b.u.name,'he'));
+  rows.forEach(x=>{
+    if(x.off){h+='<div class="sf"><div class="sfh"><b>'+esc(x.u.name)+'</b><span class="mu">'+rng(x.sh)+'</span></div><div class="tlw"><div class="tl">'+x.sh.map(([a,b])=>seg(a,b,'r','חסר')).join('')+'</div></div>'+ax+'<div class="bm bad">חסר '+rng(x.sh)+' · שבוע חופש בסבב (שבוע כן, שבוע לא)</div></div>';return}
+    const rs=rd.filter(r=>r.uid===x.u.id),ab=[];rs.forEach(r=>absOf(r,x.u).forEach(a=>ab.push(a)));
+    const cov=covers.filter(c=>c.date===k&&rs.some(r=>r.id===c.req));
+    h+='<div class="sf"><div class="sfh"><b>'+esc(x.u.name)+'</b><span class="mu">'+rng(x.sh)+'</span></div><div class="tlw"><div class="tl">'+x.sh.map(([a,b])=>seg(a,b,'g')).join('')+ab.map(a=>seg(a[0],a[1],'r','חסר')).join('')+'</div></div>'+ax+(ab.length?'<div class="bm bad">חסר '+rng(ab)+' · '+rs.map(r=>esc(desc(r))).join(', ')+'</div>':'<div class="bm good">משמרת מלאה ✓</div>')+(cov.length?'<div class="mu" style="font-size:12px">↪ מילוי: '+cov.map(c=>esc(c.name)+' '+c.from+'–'+c.to).join(', ')+'</div>':'')+'</div>';
+  });
+  covers.filter(c=>c.date===k).forEach(c=>{h+='<div class="sf"><div class="sfh"><b>↪ '+esc(c.name)+(c.uid?'':' (זמני)')+'</b><span class="mu">מילוי '+c.from+'–'+c.to+'</span></div><div class="tlw"><div class="tl">'+seg(tm2(c.from),tm2(c.to),'g2')+'</div></div>'+ax+'</div>'});
+  return h;
+}
+function boardView(){
+  return '<div class="glass"><div class="nav"><button onclick="bnav(-1)">›</button><div class="ttl"><b>משמרות</b><span>'+esc(fmtD(bdate))+'</span></div><button onclick="bnav(1)">‹</button><button onclick="bnav(0)">היום</button></div><div class="leg"><span><i style="background:#7fd6a4"></i>עובד במשמרת</span><span><i style="background:#f5a9a1"></i>חסר (בקשה או סבב)</span><span><i style="background:#8fc5ff"></i>מילוי חסר</span></div>'+shiftBoard(bdate)+'</div>';
+}
+function schedHtml(k){
+  const day=users.map(u=>({u:u,sh:shOf(u,k)})).filter(x=>x.sh.length);
+  if(!day.length)return '';
+  return '<label>שעות עבודה רגילות</label><div class="ex" style="display:block;border-top:none;padding:2px 0 10px">'+day.map(x=>'<div><b>'+esc(x.u.name)+'</b> · '+rng(x.sh)+'</div>').join('')+'<div class="mu" style="margin-top:4px">נדרש: לפחות 2 עובדים, ומשעה 18:00 לפחות 3</div></div>';
+}
+function parseSh(v){return (v.match(/\d{1,2}:\d{2}\s*-\s*\d{1,2}:\d{2}/g)||[]).map(x=>x.split('-').map(t=>{const p=t.trim().split(':');return p[0].padStart(2,'0')+':'+p[1]}).join('-'))}
+function seedShifts(s){
+  const L=[['דודו',['14:00-22:00'],'emp-dudu','','employee'],['אהרן משה',['10:00-14:00','18:00-22:00'],'manager-aharon','','manager'],['חן',['14:00-22:00'],'emp-chen','','employee'],['אברהם עדנן',['10:00-14:00'],'emp-avraham','','employee']];
+  L.forEach(([n,sh,id,pw,rl])=>{
+    const d=s.docs.find(x=>x.data().name===n);
+    if(d)db.collection('users').doc(d.id).update({shifts:sh}).catch(()=>{});
+    else db.collection('users').doc(id).set({name:n,pass:pw,role:rl,shifts:sh}).catch(()=>{});
+  });
+}
+const mapDocs=s=>s.docs.map(d=>Object.assign({id:d.id},d.data()));
+const isLocked=k=>locks.some(l=>l.id===k);
+function toast(t){const e=$('#toast');e.textContent=t;e.classList.add('on');setTimeout(()=>e.classList.remove('on'),4200)}
+
+async function init(){
+  try{db=window.claude?await claude.use('db'):null}catch(e){db=null}
+  if(!db&&window.firebase&&FIREBASE_CONFIG.projectId&&FIREBASE_CONFIG.projectId!=='PASTE'){try{firebase.initializeApp(FIREBASE_CONFIG);db=firebase.firestore();try{db.enablePersistence({synchronizeTabs:true}).catch(()=>{})}catch(e){}FB=1}catch(e){db=null}}
+  if(!db){render();return}
+  if(FB){auth=firebase.auth();if(!ls.get())ready=1;render();setTimeout(()=>{if(!ready){ready=1;render()}},8000);auth.onAuthStateChanged(async u=>{if(!u){if(!ready||me){ready=1;me=null;ls.set(null);render()}return}let mp=null;try{mp=localStorage.getItem('vm_map_'+u.uid)}catch(_){}if(mp){ls.set(mp);startData();resolveSession(u,true);return}await resolveSession(u);if(ls.get())startData()});return}
+  startData();
+}
+let unsubs=[],dRetry=0,dRetrying=0,acc=[],accOn=0,hv='req',accSeen=0,visitLogged=0;
+try{accSeen=+localStorage.getItem('vm_acc_seen')||0}catch(_){}
+let geoP=null;
+function geo(){
+  if(!geoP)geoP=(async()=>{try{const c=new AbortController(),t=setTimeout(()=>c.abort(),3000);const r=await fetch('https://get.geojs.io/v1/ip/geo.json',{signal:c.signal});clearTimeout(t);if(!r.ok)return{};const j=await r.json();return{ip:String(j.ip||'').slice(0,45),city:String(j.city||'').slice(0,60),country:String(j.country||'').slice(0,60)}}catch(_){return{}}})();
+  return geoP;
+}
+async function logAcc(kind,name){try{if(!db)return;const g=await geo();await db.collection('access').add(Object.assign({kind:kind,name:String(name||'').slice(0,60),dev:devName(),ts:Date.now()},g))}catch(_){}}
+function startAcc(){if(accOn||!me||me.role!=='admin')return;accOn=1;unsubs.push(db.collection('access').orderBy('ts','desc').limit(300).onSnapshot(s=>{acc=mapDocs(s);render()},()=>{}))}
+function stopData(){unsubs.forEach(u=>{try{u&&u()}catch(_){}});unsubs=[];dataOn=0;accOn=0}
+function startData(){
+  if(dataOn)return;dataOn=1;dRetrying=0;
+  const timer=setTimeout(()=>{if(!ready){ready=1;render()}},10000),fail=e=>{
+    const c=(e&&(e.code||e.message))||"error";
+    if(FB&&c==='permission-denied'){
+      if(!auth||!auth.currentUser||!ls.get())return; // signing out: ignore
+      if(dRetry<4){if(dRetrying)return;dRetrying=1;dRetry++;stopData();setTimeout(()=>{if(auth.currentUser&&ls.get())startData()},600*dRetry);return}
+    }
+    dbErr=c;ready=1;render()};
+  unsubs.push(db.collection('users').onSnapshot(s=>{if(!shSeeded&&(!s.metadata||!s.metadata.fromCache)&&s.docs.length&&!s.docs.some(d=>d.data().shifts)){shSeeded=1;seedShifts(s)}if(FB&&!seeded&&!s.metadata.fromCache){seeded=1;if(!s.docs.length){db.collection('users').doc('manager-aharon').set({name:'אהרן משה',pass:'',role:'manager'});db.collection('users').doc('emp-dudu').set({name:'דודו',pass:'',role:'employee'})}if(!s.docs.some(d=>d.data().role==='admin'))db.collection('users').doc('admin-dudu').set({name:'דודו מנהל',pass:'',role:'admin'})}users=mapDocs(s);clearTimeout(timer);ready=1;
+    if(me===null&&ls.get())me=users.find(u=>u.id===ls.get())||null;
+    else if(me)me=users.find(u=>u.id===me.id)||null;
+    if(!me)ls.set(null);dRetry=0;startAcc();render()},fail));
+  unsubs.push(db.collection('requests').onSnapshot(s=>{reqs=mapDocs(s);render()},fail));
+  unsubs.push((FB?db.collection('messages').where('to','==',ls.get()):db.collection('messages')).onSnapshot(s=>{msgs=mapDocs(s);render()},fail));
+  unsubs.push(db.collection('locks').onSnapshot(s=>{locks=mapDocs(s);render()},fail));
+  unsubs.push(db.collection('covers').onSnapshot(s=>{covers=mapDocs(s);render()},fail));
+}
+function render(){
+  const root=$('#app');
+  if(!db){view='x';root.innerHTML='<div class="glass login"><h1 class="brand">ניהול חופשות</h1><p class="mu">לא הוגדר חיבור למסד הנתונים. יש להדביק את הגדרות Firebase בראש הקובץ (ראו README).</p><p class="mu">'+(window.firebase?'':'ספריית Firebase לא נטענה – ייתכן שהקובץ נפתח בתוך Claude או שהאינטרנט חסום. פתחו אותו בדפדפן רגיל או דרך האתר ב-GitHub.')+'</p></div>';return}
+  if(dbErr){view='x';root.innerHTML='<div class="glass login"><h1 class="brand">שגיאת מסד נתונים</h1><p class="mu">קוד השגיאה: <b dir="ltr">'+esc(dbErr)+'</b></p><p class="mu">permission-denied = יש לעדכן ב-Firestore את ה-Rules ל-allow read, write: if true. not-found או failed-precondition או unavailable = יש ליצור Firestore Database בפרויקט.</p></div>';return}
+  if(!ready){root.innerHTML='<div class="load">טוען…</div>';return}
+  if(!me){if(view!=='login')loginView();return}
+  if(tab==='staff'&&document.activeElement&&document.activeElement.closest('#sf'))return;
+  view='app';appView();
+}
+function loginView(){
+  view='login';
+  if(!visitLogged){visitLogged=1;let v=null;try{v=sessionStorage.getItem('vm_v');sessionStorage.setItem('vm_v','1')}catch(_){}if(!v)logAcc('visit','')}
+  $('#app').innerHTML='<div class="glass login"><h1 class="brand">ניהול חופשות</h1><div class="sub">התחברו עם שם משתמש וסיסמה</div><label>שם משתמש</label><input id="lu" autocomplete="username"><label>סיסמה</label><input id="lp" type="password" autocomplete="current-password"><div class="err" id="le"></div><button class="pri" style="width:100%" onclick="login()">כניסה</button></div>';
+  $('#lp').addEventListener('keydown',e=>{if(e.key==='Enter')login()});
+  $('#lu').addEventListener('keydown',e=>{if(e.key==='Enter')$('#lp').focus()});
+}
+function login(){
+  const n=$('#lu').value.trim(),p=$('#lp').value.trim();
+  if(FB){fbLogin(n,p);return}
+  const u=users.find(x=>x.name===n&&String(x.pass)===p);
+  if(!u){logAcc('fail',n);$('#le').textContent=users.length?'שם משתמש או סיסמה שגויים':'אין עדיין משתמשים במערכת';return}
+  logAcc('ok',n);me=u;ls.set(u.id);tab='cal';render();
+}
+function logout(){if(FB)stopData();ls.set(null);if(FB){auth.signOut().then(()=>location.reload());return}me=null;view='';armed='';render()}
+function setTab(t){
+  tab=t;armed='';
+  if(t==='inbox')msgs.filter(m=>m.to===me.id&&!m.read).forEach(m=>db.collection('messages').doc(m.id).update({read:true}).catch(()=>{}));
+  render();
+}
+const hEn=new Intl.DateTimeFormat('en-u-ca-hebrew',{month:'long',day:'numeric'});
+function hPart(dt){const o={};hEn.formatToParts(dt).forEach(p=>o[p.type]=p.value);return{m:o.month,d:parseInt(o.day)}}
+function hStart(dt){const d=new Date(dt);while(hPart(d).d!==1)d.setDate(d.getDate()-1);return d}
+function hLen(st){let n=0;const d=new Date(st);do{d.setDate(d.getDate()+1);n++}while(hPart(d).d!==1);return n}
+function holiday(dt){
+  const q=hPart(dt),m=q.m,d=q.d,wd=dt.getDay(),L=[],add=(n,t)=>L.push({n:n,t:t});
+  if(d===30){const nx=new Date(dt);nx.setDate(nx.getDate()+1);if(hPart(nx).m!=='Tishri')add('ראש חודש '+hp(nx).month,'rc')}
+  if(d===1&&m!=='Tishri')add('ראש חודש '+hp(dt).month,'rc');
+  if(m==='Tishri'){
+    if(d===1||d===2)add('ראש השנה','yt');
+    if((d===3&&wd!==6)||(d===4&&wd===0))add('צום גדליה','fast');
+    if(d===9)add('ערב יום כיפור','eve');
+    if(d===10)add('יום כיפור','yt');
+    if(d===14)add('ערב סוכות','eve');
+    if(d===15)add('סוכות','yt');
+    if(d>=16&&d<=20)add('חול המועד סוכות','cm');
+    if(d===21)add('הושענא רבה','cm');
+    if(d===22)add('שמיני עצרת · שמחת תורה','yt');
+  }else if(m==='Kislev'){
+    if(d>=25)add('חנוכה · יום '+(d-24),'mod');
+  }else if(m==='Tevet'){
+    if(d<=3){const pv=new Date(dt);pv.setDate(pv.getDate()-d);const n=hPart(pv).d-24+d;if(n<=8)add('חנוכה · יום '+n,'mod')}
+    if(d===10)add('צום עשרה בטבת','fast');
+  }else if(m==='Shevat'){
+    if(d===15)add('ט״ו בשבט','mod');
+  }else if(m==='Adar I'){
+    if(d===14)add('פורים קטן','mod');
+    if(d===15)add('שושן פורים קטן','mod');
+  }else if(m==='Adar'||m==='Adar II'){
+    if((d===13&&wd!==6)||(d===11&&wd===4))add('תענית אסתר','fast');
+    if(d===14)add('פורים','mod');
+    if(d===15)add('שושן פורים','mod');
+  }else if(m==='Nisan'){
+    if(d===14)add('ערב פסח','eve');
+    if(d===15)add('פסח','yt');
+    if(d>=16&&d<=20)add('חול המועד פסח','cm');
+    if(d===21)add('שביעי של פסח','yt');
+    if((d===27&&wd!==5&&wd!==0)||(d===26&&wd===4)||(d===28&&wd===1))add('יום הזיכרון לשואה ולגבורה','mod');
+  }else if(m==='Iyar'){
+    const w5=((wd+5-d)%7+7)%7,ind=w5===5?4:w5===6?3:w5===1?6:5;
+    if(d===ind-1)add('יום הזיכרון לחללי צה״ל','mod');
+    if(d===ind)add('יום העצמאות','mod');
+    if(d===18)add('ל״ג בעומר','mod');
+    if(d===28)add('יום ירושלים','mod');
+  }else if(m==='Sivan'){
+    if(d===5)add('ערב שבועות','eve');
+    if(d===6)add('שבועות','yt');
+  }else if(m==='Tamuz'){
+    if((d===17&&wd!==6)||(d===18&&wd===0))add('צום י״ז בתמוז','fast');
+  }else if(m==='Av'){
+    if((d===9&&wd!==6)||(d===10&&wd===0))add('תשעה באב','fast');
+    if(d===15)add('ט״ו באב','mod');
+  }else if(m==='Elul'){
+    if(d===29)add('ערב ראש השנה','eve');
+  }
+  return L;
+}
+function nav(dir){
+  if(dir>0){const n=new Date(HM);n.setDate(n.getDate()+hLen(HM));HM=n}
+  else{const p=new Date(HM);p.setDate(p.getDate()-1);HM=hStart(p)}
+  render();
+}
+function goToday(){HM=hStart(new Date(tm.getFullYear(),tm.getMonth(),tm.getDate(),12));render()}
+let HM=hStart(new Date(tm.getFullYear(),tm.getMonth(),tm.getDate(),12));
+
+
+function appView(){
+  const mg=me.role==='manager'||me.role==='admin',un=msgs.filter(m=>m.to===me.id&&!m.read&&m.kind!=='log').length;
+  let h='<div class="top"><div class="brand">ניהול חופשות עובדים</div><div class="who"><span class="av">'+esc(me.name.charAt(0))+'</span><span><b>'+esc(me.name)+'</b>'+' · '+RL[me.role]+'</span><button onclick="pwM()">סיסמה</button><button onclick="logout()">יציאה</button></div></div>';
+  h+='<div class="seg"><button class="'+(tab==='cal'?'on':'')+'" onclick="setTab(\'cal\')">לוח שנה</button><button class="'+(tab==='mine'?'on':'')+'" onclick="setTab(\'mine\')">הבקשות שלי</button><button class="'+(tab==='inbox'?'on':'')+'" onclick="setTab(\'inbox\')">הודעות'+(un?'<span class="bdg">'+un+'</span>':'')+'</button>'+'<button class="'+(tab==='board'?'on':'')+'" onclick="setTab(\'board\')">משמרות</button>'+(mg?'<button class="'+(tab==='staff'?'on':'')+'\" onclick="setTab(\'staff\')">ניהול</button>':'')+(me.role==='admin'?'<button class="'+(tab==='hist'?'on':'')+'" onclick="setTab(\'hist\')">היסטוריה'+(accNew()?'<span class="bdg">'+accNew()+'</span>':'')+'</button>':'')+'</div>';
+  h+=tab==='cal'?calView():tab==='mine'?mineView():tab==='inbox'?inboxView():tab==='board'?boardView():tab==='hist'&&me.role==='admin'?histView():staffView();
+  $('#app').innerHTML=h;
+  popups();
+}
+function gemY(n){
+  n%=1000;let s='';[[400,'ת'],[300,'ש'],[200,'ר'],[100,'ק']].forEach(([v,l])=>{while(n>=v){s+=l;n-=v}});
+  if(n===15)s+='טו';else if(n===16)s+='טז';else{s+=['','י','כ','ל','מ','נ','ס','ע','פ','צ'][Math.floor(n/10)];s+=['','א','ב','ג','ד','ה','ו','ז','ח','ט'][n%10]}
+  return s.length>1?s.slice(0,-1)+'״'+s.slice(-1):s+'׳';
+}
+const WDS=['א׳','ב׳','ג׳','ד׳','ה׳','ו׳','ש׳'];
+function calView(){
+  const priv=me.role==='manager'||me.role==='admin';
+  const first=HM,days=hLen(HM),last=new Date(HM),a=hp(first);last.setDate(last.getDate()+days-1);
+  const gm=x=>x.toLocaleDateString('he-IL',{month:'long'}),gy=x=>x.getFullYear();
+  const gt=gm(first)===gm(last)?gm(first)+' '+gy(first):gm(first)+(gy(first)===gy(last)?'':' '+gy(first))+' – '+gm(last)+' '+gy(last);
+  const yH=gemY(parseInt(String(a.year).replace(/\D/g,''))||0);
+  let h='<div class="glass cal"><div class="cl-head"><button class="cl-arr" onclick="nav(-1)" aria-label="החודש הקודם">›</button><div class="cl-title"><b>'+esc(a.month)+' <span>'+esc(yH)+'</span></b><small>'+esc(gt)+'</small></div><button class="cl-arr" onclick="nav(1)" aria-label="החודש הבא">‹</button></div>';
+  h+='<div class="cl-bar"><button class="cl-today" onclick="goToday()">היום</button><div class="cl-leg"><span><i class="t-vac"></i>חופשה</span><span><i class="t-late"></i>הגעה מאוחרת</span><span><i class="t-early"></i>יציאה מוקדמת</span><span><i class="pend"></i>ממתין</span>'+'<span><i class="gap"></i>חסרים עובדים</span>'+'</div></div>';
+  h+='<div class="cl-grid">';
+  WD.forEach((w,i)=>h+='<div class="cl-wd'+(i===6?' sat':'')+'"><span class="lg">'+w+'</span><span class="sm">'+WDS[i]+'</span></div>');
+  for(let i=0;i<first.getDay();i++)h+='<div class="cl-day cl-blank"></div>';
+  const ag=[];
+  for(let d=1;d<=days;d++){
+    const dt=new Date(first);dt.setDate(first.getDate()+d-1);
+    const k=key(dt.getFullYear(),dt.getMonth(),dt.getDate()),hl=holiday(dt),yt=hl.some(x=>x.t==='yt'),wd=dt.getDay();
+    const list=reqs.filter(r=>r.date===k).sort((x,y)=>x.ts-y.ts),lk=isLocked(k),past=k<todayK;
+    const gap=!past&&wd<=4&&gapsOf(k).length>0;
+    list.forEach(r=>ag.push({r:r,dt:dt,k:k}));
+    const gd=dt.getDate()===1||d===1?dt.getDate()+'.'+(dt.getMonth()+1):String(dt.getDate());
+    h+='<div class="cl-day'+(k===todayK?' now':'')+(past?' past':'')+(lk?' lk':'')+(yt||wd===6?' rest':'')+'" onclick="openM(\''+k+'\')">';
+    const fl=(lk||gap)?'<span class="cl-flags">'+(gap?'<span class="cl-gap" title="חסרים עובדים"></span>':'')+(lk?'<span title="יום נעול">🔒</span>':'')+'</span>':'';
+    h+='<div class="cl-top"><span class="cl-h">'+hday(dt)+'</span><span class="cl-meta">'+fl+'<span class="cl-g">'+gd+'</span></span></div>';
+    if(hl.length)h+='<div class="cl-hol '+hl[0].t+'" title="'+esc(hl.map(x=>x.n).join(' · '))+'">'+esc(hl[0].n)+'</div>';
+    if(list.length){
+      h+='<div class="cl-evs">';
+      list.slice(0,3).forEach(r=>{h+='<div class="cl-ev t-'+r.type+(r.status==='pending'?' p':'')+(r.uid===me.id?' own':'')+'" title="'+esc(r.name+' · '+desc(r)+(r.status==='pending'?' · ממתין לאישור':''))+'">'+esc(r.name.split(' ')[0])+(r.time?' <em>'+r.time+'</em>':'')+'</div>'});
+      if(list.length>3)h+='<div class="cl-more">+'+(list.length-3)+'</div>';
+      h+='</div><div class="cl-dots">'+list.slice(0,4).map(r=>'<i class="t-'+r.type+(r.status==='pending'?' p':'')+'"></i>').join('')+(list.length>4?'<b>+</b>':'')+'</div>';
+    }
+    h+='</div>';
+  }
+  h+='</div></div>';
+  if(me.role!=='admin')return h;
+  h+='<div class="glass cl-ag"><div class="cl-agh"><b>בקשות בחודש '+esc(a.month)+'</b><span class="mu">'+(ag.length?ag.length+' בקשות':'')+'</span></div>';
+  if(!ag.length)h+='<div class="mu" style="padding:6px 0">אין בקשות בחודש הזה</div>';
+  ag.forEach(x=>{const r=x.r,past=x.k<todayK,own=r.uid===me.id,sm=priv&&!past?missingOf(r):'';
+    h+='<div class="cl-row'+(past?' past':'')+'" onclick="openM(\''+x.k+'\''+(own?',\''+r.id+'\'':'')+')"><div class="cl-date"><b>'+hday(x.dt)+'</b><span>'+WDS[x.dt.getDay()]+' · '+x.dt.getDate()+'.'+(x.dt.getMonth()+1)+'</span></div><div class="cl-info"><div><b>'+esc(r.name)+'</b>'+(own?' <span class="mu">(שלי)</span>':'')+'</div><div class="cl-sub"><span class="cl-pill t-'+r.type+'">'+T[r.type]+(r.time?' · '+r.time:'')+'</span>'+(sm?'<span class="cl-warn">⚠ חסר '+esc(sm)+'</span>':'')+'</div>'+(me.role==='admin'&&subInfo(r)?'<div class="cl-dev">'+esc(subInfo(r))+'</div>':'')+'</div><span class="cl-st '+(r.status==='approved'?'ok':'pd')+'">'+(r.status==='approved'?'אושר':'ממתין')+'</span></div>'});
+  return h+'</div>';
+}
+
+function openM(k,eid){
+  mdate=k;medit=eid||'';const r=eid?reqs.find(x=>x.id===eid):null;
+  if(eid&&(!r||r.uid!==me.id))medit='';
+  const mg=me.role==='manager'||me.role==='admin',lk=isLocked(k),rr=medit?r:null;
+  mt=rr?rr.type:'';
+  const list=reqs.filter(x=>x.date===k);
+  let h='<div class="ov" onclick="if(event.target===this)closeM()"><div class="md"><h3>'+(medit?'עריכת בקשה':'בקשה חדשה')+'</h3><div class="sub">'+fmtD(k)+'</div>';
+  if(lk)h+='<div class="lockb">🔒 היום נעול על ידי המנהל'+(mg?'':' – לא ניתן להגיש בקשות חדשות')+'</div>';
+  h+=shiftBoard(k);
+  if(list.length){h+='<label>בקשות ביום זה</label>';list.forEach(x=>{h+='<div class="ex"><span><b>'+esc(x.name)+'</b> · '+esc(desc(x))+(me.role==='admin'&&subInfo(x)?'<br><span class="mu" style="font-size:12px">'+esc(subInfo(x))+'</span>':'')+'</span><span class="'+(x.status==='approved'?'ok':'mu')+'">'+(x.status==='approved'?'אושר':'ממתין')+'</span>'+(x.uid===me.id?'<button style="color:var(--no)" onclick="quickDel(\''+x.id+'\')">מחיקה</button>':'')+(x.uid===me.id&&x.id!==medit?'<button onclick="openM(\''+k+'\',\''+x.id+'\')">'+(lk&&!mg?'פתח':'עריכה')+'</button>':'')+'</div>'})}
+  if(mg)h+=coverPanel(k,list);
+  const canForm=!lk||mg;
+  if(canForm){
+    h+='<div class="tiles">';
+    ['vac','late','early'].forEach(t=>h+='<button class="tile '+t+(mt===t?' on':'')+'" onclick="pick(\''+t+'\')"><b>'+IC[t]+'</b>'+T[t]+'</button>');
+    h+='</div><div id="tw" style="display:'+(mt==='late'||mt==='early'?'block':'none')+'"><label id="tl">'+(mt==='late'?'שעת הגעה':'שעת יציאה')+'</label><input id="mtime" type="time" value="'+esc(rr?rr.time:'')+'"><div class="qt" id="qt"></div></div>';
+    h+='<label>סיבה / הערות (לא חובה)</label><input id="mnote" maxlength="120" value="'+esc(rr?rr.note:'')+'"><div class="err" id="me"></div><div class="row"><button class="pri" onclick="save()">'+(medit?'שמירת שינויים':'שליחת בקשה')+'</button>';
+  }else h+='<div class="err" id="me"></div><div class="row">';
+  if(medit)h+='<button onclick="delReq()" style="color:var(--no)">מחיקת הבקשה</button>';
+  if(mg)h+='<button onclick="toggleLock()">'+(lk?'🔓 שחרור נעילה':'🔒 נעילת היום')+'</button>';
+  h+='<button onclick="closeM()">סגירה</button></div></div></div>';
+  $('#modal').innerHTML=h;
+  if(mt==='late'||mt==='early')quick();
+}
+function gapsOf(k){
+  const day=users.map(u=>({u:u,sh:shOf(u,k)})).filter(x=>x.sh.length);if(!day.length)return[];
+  const all=[].concat(...day.map(x=>x.sh)),lo=Math.min(...all.map(x=>x[0])),hi=Math.max(...all.map(x=>x[1])),out=[];
+  covSegs(k,day,lo,hi).filter(x=>x.have<x.need).forEach(x=>{const l=out[out.length-1];if(l&&l.b===x.a){l.b=x.b;l.t.push(x)}else out.push({a:x.a,b:x.b,t:[x]})});
+  return out;
+}
+function coverPanel(k,list){
+  const gp=gapsOf(k),gRow=gp.length?'<div class="ex"><span><b>חוסר בכיסוי</b> · '+gp.map(g=>g.t.map(x=>m2t(x.a)+'–'+m2t(x.b)+' ('+x.have+' מתוך '+x.need+')').join(', ')).join(', ')+'</span><button onclick="coverM(\'_gap:'+k+'\')">מילוי חסר</button></div>':'';
+  const rows=gRow+list.map(r=>{const u=users.find(x=>x.id===r.uid),ab=u?absOf(r,u):[];return ab.length?'<div class="ex"><span><b>'+esc(r.name)+'</b> · חסר '+rng(ab)+'</span><button onclick="coverM(\''+r.id+'\')">מילוי חסר</button></div>':''}).join('');
+  const cv=covers.filter(c=>c.date===k).map(c=>'<div class="ex"><span>↪ <b>'+esc(c.name)+'</b>'+(c.uid?'':' (זמני)')+' · '+c.from+'–'+c.to+'</span><button style="color:var(--no)" onclick="delCover(\''+c.id+'\')">הסרה</button></div>').join('');
+  return (rows||cv)?'<label>מילוי חסר</label>'+rows+cv:'';
+}
+let cvMode='full',cvReq='';
+function coverM(rid){
+  const gk=rid.indexOf('_gap:')===0?rid.slice(5):'';
+  const r=gk?{id:'',uid:'',date:gk,name:'חוסר בכיסוי'}:reqs.find(x=>x.id===rid);if(!r)return;cvReq=rid;cvMode='full';
+  const u0=users.find(x=>x.id===r.uid),ab=gk?gapsOf(gk).map(g=>[g.a,g.b]):(u0?absOf(r,u0):[]);
+  const opts=users.filter(u=>u.role!=='admin'&&u.id!==r.uid).map(u=>'<option value="'+u.id+'">'+esc(u.name)+'</option>').join('');
+  $('#modal').innerHTML='<div class="ov" onclick="if(event.target===this)closeM()"><div class="md"><h3>מילוי חסר</h3><div class="sub">'+(gk?'חוסר בכיסוי · '+esc(fmtD(gk)):esc(r.name)+' · '+esc(desc(r)))+' · חסר '+rng(ab)+'</div><label>מי מכסה?</label><select id="cp" onchange="$(\'#ctw\').style.display=this.value===\'_t\'?\'block\':\'none\'">'+opts+'<option value="_t">עובד זמני</option></select><div id="ctw" style="display:none"><label>שם העובד הזמני</label><input id="ct"></div><div class="tiles" style="grid-template-columns:1fr 1fr"><button class="tile on vac" id="cm1" onclick="cvSet(\'full\')">כיסוי מלא</button><button class="tile" id="cm2" onclick="cvSet(\'hours\')">לפי שעות</button></div><div id="chw" style="display:none"><div class="row"><div style="flex:1"><label>משעה</label><input id="cf" type="time"></div><div style="flex:1"><label>עד שעה</label><input id="cto" type="time"></div></div></div><div class="err" id="ce"></div><div class="row"><button class="pri" onclick="saveCover()">הוספה</button><button onclick="closeM()">ביטול</button></div></div></div>';
+}
+function cvSet(m){
+  cvMode=m;$('#cm1').className='tile'+(m==='full'?' on vac':'');$('#cm2').className='tile'+(m==='hours'?' on vac':'');
+  $('#chw').style.display=m==='hours'?'block':'none';
+}
+async function saveCover(){
+  const gk=cvReq.indexOf('_gap:')===0?cvReq.slice(5):'';
+  const r=gk?{id:'',uid:'',date:gk,name:'חוסר בכיסוי'}:reqs.find(x=>x.id===cvReq),e=$('#ce');if(!r)return;
+  const sel=$('#cp').value,temp=sel==='_t',nm=temp?$('#ct').value.trim():(users.find(x=>x.id===sel)||{}).name;
+  if(!nm){e.textContent='יש לרשום שם לעובד הזמני';return}
+  const u0=users.find(x=>x.id===r.uid);let rs=[];
+  if(cvMode==='full')rs=gk?gapsOf(gk).map(g=>[g.a,g.b]):(u0?absOf(r,u0):[]);
+  else{const a=$('#cf').value,b=$('#cto').value;if(!a||!b||tm2(b)<=tm2(a)){e.textContent='יש לבחור טווח שעות תקין';return}rs=[[tm2(a),tm2(b)]]}
+  if(!rs.length){e.textContent='אין שעות חסרות לכיסוי';return}
+  try{
+    for(const x of rs)await db.collection('covers').add({date:r.date,req:r.id,name:nm,uid:temp?'':sel,from:m2t(x[0]),to:m2t(x[1]),ts:Date.now()});
+    if(!temp)await db.collection('messages').add({to:sel,text:(gk?'הוקצית למלא חוסר בכיסוי':'הוקצית לכסות את '+r.name)+' · '+fmtD(r.date)+' · '+rng(rs),ts:Date.now(),read:false});
+    closeM();toast('המילוי נוסף');
+  }catch(x){e.textContent='אירעה שגיאה, נסו שוב'}
+}
+async function delCover(id){try{await db.collection('covers').doc(id).delete();closeM();toast('המילוי הוסר')}catch(x){toast('אירעה שגיאה')}}
+function dueTime(k){const d=kd(k);d.setDate(d.getDate()-1);d.setHours(14,30,0,0);return d.getTime()}
+let remBusy=0;
+async function checkReminders(){
+  if(!db||remBusy||!users.length||!me||!(me.role==='manager'||me.role==='admin'))return;
+  const boss=users.find(u=>u.role==='manager');if(!boss)return;
+  const nowT=Date.now();
+  const due=reqs.filter(r=>!r.reminded&&r.ts<dueTime(r.date)&&nowT>=dueTime(r.date)&&nowT<kd(r.date).getTime()+12*36e5);
+  if(!due.length)return;
+  remBusy=1;
+  try{
+    for(const r of due){
+      if(!(await claimRem(r.id)))continue;
+      const d=Object.assign({},r,{rid:r.id}),an=analyze(d);
+      const text='תזכורת למחר: '+r.name+' – '+desc(r)+' · '+fmtD(r.date);
+      await db.collection('messages').add({to:boss.id,rid:r.id,text:text,alert:alertText(an),reminder:true,ts:Date.now(),read:false});
+      sendMail(boss,d,text,'',true);
+    }
+  }catch(x){}
+  remBusy=0;
+}
+const popSeen=new Set();
+function popups(){
+  if(!me||!db)return;
+  const t1=new Date();t1.setDate(t1.getDate()+1);const tmr=key(t1.getFullYear(),t1.getMonth(),t1.getDate());
+  const fresh=msgs.filter(m=>m.to===me.id&&!m.read&&!popSeen.has(m.id)&&m.rid&&((reqs.find(r=>r.id===m.rid)||{}).date===tmr));
+  if(!fresh.length)return;
+  fresh.forEach(m=>popSeen.add(m.id));
+  let e=$('#pop');if(!e){e=document.createElement('div');e.id='pop';document.body.appendChild(e)}
+  e.innerHTML='<div class="popc"><b>'+(fresh.some(m=>m.reminder)?'⏰ תזכורת למחר':'🔔 הודעה חדשה')+'</b>'+fresh.slice(0,3).map(m=>'<div class="popt">'+esc(m.text)+(m.alert?'<br><b style="color:var(--no)">⚠ '+esc(m.alert)+'</b>':'')+'</div>').join('')+'<div class="row"><button class="pri" onclick="$(\'#pop\').innerHTML=\'\';setTab(\'inbox\')">פתיחת ההודעות</button><button onclick="$(\'#pop\').innerHTML=\'\'">סגירה</button></div></div>';
+}
+async function claimRem(id){
+  const ref=db.collection('requests').doc(id);
+  if(db.runTransaction)return db.runTransaction(async tx=>{const d=await tx.get(ref);if(!d.exists||d.data().reminded)return false;tx.update(ref,{reminded:true});return true});
+  await ref.update({reminded:true});return true;
+}
+const sha=async s=>[...new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(s)))].map(b=>b.toString(16).padStart(2,'0')).join('');
+const rand=()=>[...crypto.getRandomValues(new Uint8Array(8))].map(b=>b.toString(16).padStart(2,'0')).join('');
+async function resolveSession(u,bg){
+  let m=null;
+  for(let i=0;i<8&&!m;i++){
+    try{const d=await db.collection('uidmap').doc(u.uid).get();if(d.exists)m=d.data()}catch(e){}
+    if(!m)await new Promise(r=>setTimeout(r,500));
+  }
+  if(!m){if(bg)return;try{localStorage.removeItem('vm_map_'+u.uid)}catch(_){}await auth.signOut();const e=$('#le');if(e)e.textContent='החשבון לא הוגדר במערכת. פנו למנהל האתר';return}
+  try{localStorage.setItem('vm_map_'+u.uid,m.userId)}catch(_){}
+  if(bg&&ls.get()!==m.userId){ls.set(m.userId);location.reload();return}
+  ls.set(m.userId);
+}
+async function fbLogin(n,p){
+  const e=$('#le');
+  if(!n||!p){e.textContent='יש למלא שם משתמש וסיסמה';return}
+  e.textContent='מתחבר…';
+  try{
+    const h=await sha(n);
+    let cached=null;try{cached=localStorage.getItem('vm_em_'+h)}catch(_){}
+    if(cached){
+      try{await auth.signInWithEmailAndPassword(cached,await sha(cached+'|'+p));logAcc('ok',n);return}
+      catch(x){if(x&&x.code==='auth/too-many-requests')throw x}
+    }
+    const lg=await db.collection('logins').doc(h).get();
+    if(!lg.exists){await legacyMigrate(n,p,h);return}
+    const em=lg.data().email;
+    await auth.signInWithEmailAndPassword(em,await sha(em+'|'+p));
+    logAcc('ok',n);
+    try{localStorage.setItem('vm_em_'+h,em)}catch(_){}
+  }catch(x){
+    logAcc('fail',n);
+    e.textContent=(x&&x.code==='auth/too-many-requests')?'יותר מדי ניסיונות. נסו שוב בעוד כמה דקות':'שם משתמש או סיסמה שגויים'+((x&&(x.code||x.message))?' ('+(x.code||x.message)+')':'');
+  }
+}
+async function legacyMigrate(n,p,h){
+  let q=await db.collection('users').get();
+  if(q.empty&&n==='דודו מנהל'&&p){await db.collection('users').doc('admin-dudu').set({name:'דודו מנהל',pass:p,role:'admin'});q=await db.collection('users').get()}
+  const nz=v=>String(v==null?'':v).replace(/[\u200e\u200f\u202a-\u202e\u00a0]/g,' ').replace(/\s+/g,' ').trim();
+  const d=q.docs.find(x=>nz(x.data().name)===nz(n)&&nz(x.data().pass)===nz(p));
+  if(!d)throw new Error('bad: users='+q.size+' nameFound='+q.docs.some(x=>nz(x.data().name)===nz(n))+' project='+FIREBASE_CONFIG.projectId);
+  const em='u'+rand()+'@vacations.app',c=await auth.createUserWithEmailAndPassword(em,await sha(em+'|'+p));
+  await db.collection('uidmap').doc(c.user.uid).set({userId:d.id,role:d.data().role});
+  await db.collection('logins').doc(h).set({email:em,uid:c.user.uid});
+  await db.collection('users').doc(d.id).update({pass:firebase.firestore.FieldValue.delete()});
+}
+async function fbAuthCreate(email,pw){
+  const sec=firebase.apps.find(a=>a.name==='sec')||firebase.initializeApp(FIREBASE_CONFIG,'sec');
+  const c=await sec.auth().createUserWithEmailAndPassword(email,pw),uid=c.user.uid;
+  await sec.auth().signOut();return uid;
+}
+async function fbAccount(name,pass,userId,role){
+  const em='u'+rand()+'@vacations.app',uid=await fbAuthCreate(em,await sha(em+'|'+pass));
+  await db.collection('uidmap').doc(uid).set({userId:userId,role:role});
+  await db.collection('logins').doc(await sha(name)).set({email:em,uid:uid});
+  return uid;
+}
+async function fbUserSave(u,n,p){
+  const oh=await sha(u.name),nh=await sha(n),old=await db.collection('logins').doc(oh).get(),lg=old.exists?old.data():null;
+  if(p){
+    if(lg){await db.collection('uidmap').doc(lg.uid).delete();if(nh!==oh)await db.collection('logins').doc(oh).delete()}
+    await fbAccount(n,p,u.id,u.role);
+    if(u.pass)await db.collection('users').doc(u.id).update({pass:firebase.firestore.FieldValue.delete()});
+  }else if(lg&&nh!==oh){
+    await db.collection('logins').doc(nh).set(lg);await db.collection('logins').doc(oh).delete();
+  }
+}
+async function setUidRole(userId,role){
+  const u=users.find(x=>x.id===userId);if(!u)return;
+  const d=await db.collection('logins').doc(await sha(u.name)).get();
+  if(d.exists)await db.collection('uidmap').doc(d.data().uid).update({role:role});
+}
+function statusBanner(){
+  const um=users.filter(u=>u.pass).length;
+  return '<div class="'+(um?'lockb':'mu')+'" style="margin-bottom:14px;font-size:13px">'+(um?'⚠ '+um+' משתמשים עדיין לא התחברו בגרסה המאובטחת. עד שכולם יתחברו פעם אחת, אל תקשיחו את כללי Firestore.':'✓ כל המשתמשים מאובטחים. אפשר להקשיח את כללי Firestore.')+'</div>';
+}
+function botSection(){
+  return '<div style="height:18px"></div><b>חשבון לתזכורות אוטומטיות</b><div class="sub">נדרש פעם אחת, כדי שמשימת התזכורות ב-GitHub תוכל לקרוא נתונים</div><button onclick="makeBot()">יצירת חשבון תזכורות</button>';
+}
+async function makeBot(){
+  try{
+    const em='bot'+rand()+'@vacations.app',pw=rand()+rand()+rand(),uid=await fbAuthCreate(em,pw);
+    await db.collection('uidmap').doc(uid).set({userId:'bot',role:'manager'});
+    $('#modal').innerHTML='<div class="ov"><div class="md"><h3>חשבון תזכורות נוצר</h3><div class="sub">שמרו את שני הערכים כסודות ב-GitHub (Settings ← Secrets and variables ← Actions). הם לא יוצגו שוב.</div><label>BOT_EMAIL</label><input readonly dir="ltr" value="'+em+'" onclick="this.select()"><label>BOT_PASSWORD</label><input readonly dir="ltr" value="'+pw+'" onclick="this.select()"><div class="row"><button class="pri" onclick="closeM()">סגירה</button></div></div></div>';
+  }catch(x){toast('אירעה שגיאה ביצירת החשבון')}
+}
+function pwM(){
+  $('#modal').innerHTML='<div class="ov" onclick="if(event.target===this)closeM()"><div class="md"><h3>החלפת סיסמה</h3><label>סיסמה נוכחית</label><input id="po" type="password"><label>סיסמה חדשה (לפחות '+4+' תווים)</label><input id="pn" type="password"><label>אימות סיסמה חדשה</label><input id="pc" type="password"><div class="err" id="pe"></div><div class="row"><button class="pri" onclick="changePw()">שמירה</button><button onclick="closeM()">ביטול</button></div></div></div>';
+}
+async function changePw(){
+  const o=$('#po').value,n=$('#pn').value,c=$('#pc').value,e=$('#pe');
+  if(n.length<4){e.textContent='הסיסמה החדשה קצרה מדי';return}
+  if(n!==c){e.textContent='אימות הסיסמה לא תואם';return}
+  try{
+    if(FB){const cu=auth.currentUser,em=cu.email;await cu.reauthenticateWithCredential(firebase.auth.EmailAuthProvider.credential(em,await sha(em+'|'+o)));await cu.updatePassword(await sha(em+'|'+n))}
+    else{if(String(me.pass)!==o){e.textContent='הסיסמה הנוכחית שגויה';return}await db.collection('users').doc(me.id).update({pass:n})}
+    closeM();toast('הסיסמה הוחלפה');
+  }catch(x){e.textContent=(x&&x.code&&x.code.indexOf('auth/')===0)?'הסיסמה הנוכחית שגויה':'אירעה שגיאה, נסו שוב'}
+}
+function mineView(){
+  const my=reqs.filter(r=>r.uid===me.id),up=my.filter(r=>r.date>=todayK).sort((a,b)=>a.date<b.date?-1:1),pa=my.filter(r=>r.date<todayK).sort((a,b)=>a.date<b.date?1:-1);
+  const card=r=>'<div class="sf"><div class="sfh"><b>'+esc(T[r.type])+'</b><span class="'+(r.status==='approved'?'ok':'mu')+'">'+(r.status==='approved'?'✓ אושר':'ממתין לאישור')+'</span></div><div style="font-size:14px">'+esc(fmtD(r.date))+(r.time?'<br>'+esc(desc(r)):'')+(r.note?'<br><span class="mu">'+esc(r.note)+'</span>':'')+'</div><div class="row">'+(r.date>=todayK?'<button onclick="openM(\''+r.date+'\',\''+r.id+'\')">עריכה</button>':'')+'<button style="color:var(--no)" onclick="quickDel(\''+r.id+'\')">מחיקה</button></div></div>';
+  let h='<div class="glass"><b>הבקשות שלי</b><div style="height:8px"></div>';
+  if(!my.length)h+='<div class="mu">אין בקשות</div>';
+  h+=up.map(card).join('');
+  if(pa.length)h+='<label>בקשות שעברו</label>'+pa.map(card).join('');
+  return h+'</div>';
+}
+function setupPwa(){
+  try{
+    const c=document.createElement('canvas');c.width=c.height=512;const x=c.getContext('2d');
+    const g=x.createLinearGradient(0,0,512,512);g.addColorStop(0,'#4a5cf0');g.addColorStop(1,'#00a6c8');x.fillStyle=g;x.fillRect(0,0,512,512);
+    x.font='300px serif';x.textAlign='center';x.textBaseline='middle';x.fillText('🌴',256,280);
+    const icon=c.toDataURL('image/png'),u=location.origin+location.pathname;
+    const l=document.createElement('link');l.rel='apple-touch-icon';l.href=icon;document.head.appendChild(l);
+    const mf={name:'ניהול חופשות עובדים',short_name:'חופשות',start_url:u,scope:u,display:'standalone',background_color:'#070b16',theme_color:'#4a5cf0',lang:'he',dir:'rtl',icons:[{src:icon,sizes:'512x512',type:'image/png'},{src:icon,sizes:'192x192',type:'image/png'}]};
+    const m=document.createElement('link');m.rel='manifest';m.href=URL.createObjectURL(new Blob([JSON.stringify(mf)],{type:'application/manifest+json'}));document.head.appendChild(m);
+  }catch(e){}
+}
+function closeM(){$('#modal').innerHTML=''}
+function quick(){
+  const L=mt==='late'?['08:30','09:00','09:30','10:00','11:00']:['12:00','13:00','14:00','15:00','16:00'];
+  $('#qt').innerHTML=L.map(t=>'<button onclick="$(\'#mtime\').value=\''+t+'\'">'+t+'</button>').join('');
+}
+function pick(t){
+  mt=t;document.querySelectorAll('.tile').forEach(b=>b.classList.remove('on'));
+  document.querySelector('.tile.'+t).classList.add('on');
+  $('#tw').style.display=t==='vac'?'none':'block';
+  $('#tl').textContent=t==='late'?'שעת הגעה':'שעת יציאה';
+  const i=$('#mtime');if(!i.value)i.value=t==='late'?'09:30':'15:00';
+  if(t!=='vac')quick();
+}
+async function toggleLock(){
+  try{
+    if(isLocked(mdate)){await db.collection('locks').doc(mdate).delete();toast('הנעילה שוחררה')}
+    else{await db.collection('locks').doc(mdate).set({date:mdate,ts:Date.now()});toast('היום ננעל')}
+    closeM();
+  }catch(x){$('#me').textContent='אירעה שגיאה, נסו שוב'}
+}
+let devModel='';
+try{navigator.userAgentData&&navigator.userAgentData.getHighEntropyValues&&navigator.userAgentData.getHighEntropyValues(['model']).then(v=>{devModel=(v&&v.model)||''}).catch(()=>{})}catch(_){}
+function devName(){
+  const u=navigator.userAgent||'';
+  const os=/iPhone/.test(u)?'iPhone':(/iPad/.test(u)||(/Macintosh/.test(u)&&navigator.maxTouchPoints>1))?'iPad':/Android/.test(u)?'Android':/Windows/.test(u)?'Windows':/Mac OS X/.test(u)?'Mac':/Linux/.test(u)?'Linux':'מכשיר לא מזוהה';
+  let m=devModel;if(!m){const a=u.match(/Android [\d.]+;\s*([^;)]+?)(?:\s+Build|\))/);if(a&&a[1].trim()!=='K')m=a[1].trim()}
+  const br=/EdgA?\/|Edg\//.test(u)?'Edge':/SamsungBrowser/.test(u)?'Samsung Internet':/OPR\/|Opera/.test(u)?'Opera':/CriOS|Chrome\//.test(u)?'Chrome':/FxiOS|Firefox/.test(u)?'Firefox':/Safari/.test(u)?'Safari':'';
+  let app=false;try{app=(window.matchMedia&&matchMedia('(display-mode: standalone)').matches)||navigator.standalone===true}catch(_){}
+  return [os+(m?' ('+m+')':''),br,app?'מסך הבית':''].filter(Boolean).join(' · ').slice(0,120);
+}
+const fmtDT=ms=>new Date(ms).toLocaleString('he-IL',{day:'numeric',month:'numeric',hour:'2-digit',minute:'2-digit'});
+function subInfo(r){
+  if(r.cts)return 'הוגש '+fmtDT(r.cts)+(r.cdev?' · '+r.cdev:'')+(r.ets?' · עודכן '+fmtDT(r.ets)+(r.edev?' · '+r.edev:''):'');
+  return r.ts?'נשמר '+fmtDT(r.ts)+' · מכשיר לא נרשם (בקשה מלפני העדכון)':'';
+}
+function subLog(){
+  const l=reqs.slice().sort((a,b)=>(b.ets||b.cts||b.ts||0)-(a.ets||a.cts||a.ts||0)).slice(0,40);
+  let h='<b>יומן הגשות</b><div class="sub">40 הבקשות האחרונות: מתי הוגשו או עודכנו, ומאיזה מכשיר. רק מנהל האתר רואה את זה</div>';
+  if(!l.length)return h+'<div class="mu">אין בקשות</div><div style="height:22px"></div>';
+  l.forEach(r=>h+='<div class="ur" style="flex-wrap:wrap"><span><b>'+esc(r.name)+'</b> · '+esc(desc(r))+' · ל־'+esc(fmtD(r.date))+'</span><span class="mu" style="font-size:12px">'+esc(subInfo(r))+'</span></div>');
+  return h+'<div style="height:22px"></div>';
+}
+function logEv(act,r){
+  try{
+    const ad=users.filter(u=>u.role==='admin');if(!ad.length||!r)return;
+    const dv=devName(),t=Date.now();
+    ad.forEach(a=>db.collection('messages').add({to:a.id,kind:'log',act:act,lrid:r.id||'',who:r.name||'',type:r.type||'',time:r.time||'',date:r.date||'',note:r.note||'',by:me.name,dev:dv,ts:t,read:true}).catch(()=>{}));
+  }catch(_){}
+}
+function histView(){
+  if(hv==='acc')return histSw()+accView();
+  return histSw()+reqHist();
+}
+function histSw(){const f=accNew();return '<div class="seg hsw"><button class="'+(hv==='req'?'on':'')+'" onclick="hv=\'req\';render()">בקשות</button><button class="'+(hv==='acc'?'on':'')+'" onclick="openAcc()">כניסות למערכת'+(f?'<span class="bdg">'+f+'</span>':'')+'</button></div>'}
+const accNew=()=>(startAcc(),acc.filter(a=>a.kind==='fail'&&a.ts>accSeen).length);
+function openAcc(){hv='acc';accSeen=Date.now();try{localStorage.setItem('vm_acc_seen',accSeen)}catch(_){}render()}
+function accView(){
+  const l=acc.slice().sort((a,b)=>b.ts-a.ts),wk=Date.now()-7*864e5;
+  const K={ok:['כניסה','ok'],fail:['ניסיון כושל','no'],visit:['ביקור','up']};
+  const okN=l.filter(a=>a.kind==='ok'&&a.ts>wk).length,flN=l.filter(a=>a.kind==='fail'&&a.ts>wk).length,vN=l.filter(a=>a.kind==='visit'&&a.ts>wk).length;
+  let h='<div class="glass"><div class="row" style="justify-content:space-between;align-items:center;margin:0 0 4px"><b>כניסות למערכת</b>'+(l.length?'<button onclick="delAllAcc()"'+(armed==='acc'?' style="color:var(--no)"':'')+'>'+(armed==='acc'?'לחצו שוב למחיקת הכל':'מחיקת הכל')+'</button>':'')+'</div>';
+  h+='<div class="sub">כל כניסה, ניסיון כניסה כושל ופתיחה של דף הכניסה, עם מכשיר, כתובת אינטרנט ומיקום משוער (עיר ומדינה לפי כתובת האינטרנט, לא מיקום מדויק). רק מנהל האתר רואה את זה</div>';
+  h+='<div class="acc-sum"><span><b>'+okN+'</b> כניסות</span><span class="'+(flN?'bad':'')+'"><b>'+flN+'</b> ניסיונות כושלים</span><span><b>'+vN+'</b> ביקורים</span><span class="mu">ב־7 הימים האחרונים</span></div>';
+  if(!l.length)h+='<div class="mu" style="padding:8px 0">עוד אין רישומים. מעכשיו כל כניסה תירשם כאן</div>';
+  l.forEach(a=>{const k=K[a.kind]||['?','up'],unk=a.kind==='fail'&&a.name&&!users.some(u=>u.name===a.name),loc=[a.city,a.country].filter(Boolean).join(', ');
+    h+='<div class="hs'+(a.kind==='fail'?' hs-f':'')+'"><span class="hs-a '+k[1]+'">'+k[0]+'</span><div class="hs-b"><div>'+(a.kind==='visit'?'<span class="mu">מישהו פתח את דף הכניסה</span>':'<b>'+esc(a.name||'(ריק)')+'</b>'+(unk?' <span class="acc-unk">שם לא קיים במערכת</span>':(a.kind==='fail'&&a.name?' <span class="acc-wp">שם קיים, סיסמה שגויה</span>':'')))+'</div><div class="mu hs-m">'+fmtDT(a.ts)+(a.dev?' · '+esc(a.dev):'')+(loc?' · 📍 '+esc(loc):'')+(a.ip?' · <span dir="ltr">'+esc(a.ip)+'</span>':'')+'</div></div><button onclick="delAcc(\''+a.id+'\')">מחיקה</button></div>'});
+  return h+'</div>';
+}
+async function delAcc(id){try{await db.collection('access').doc(id).delete()}catch(x){toast('אירעה שגיאה במחיקה')}}
+async function delAllAcc(){if(armed!=='acc'){armed='acc';render();return}armed='';try{for(const a of acc)await db.collection('access').doc(a.id).delete();toast('הרישומים נמחקו')}catch(x){toast('אירעה שגיאה במחיקה')}}
+function reqHist(){
+  const l=msgs.filter(m=>m.to===me.id&&m.kind==='log').sort((a,b)=>b.ts-a.ts);
+  const AC={'הגשה':'ok','עדכון':'up','אישור':'ok','דחייה':'no','מחיקה':'no'};
+  let h='<div class="glass"><div class="row" style="justify-content:space-between;align-items:center;margin:0 0 4px"><b>היסטוריית בקשות</b>'+(l.length?'<button onclick="delAllLogs()"'+(armed==='logs'?' style="color:var(--no)"':'')+'>'+(armed==='logs'?'לחצו שוב למחיקת הכל':'מחיקת כל ההיסטוריה')+'</button>':'')+'</div>';
+  h+='<div class="sub">כל הגשה, עדכון, אישור, דחייה ומחיקה של בקשה, עם השעה והמכשיר. מחיקה כאן מוחקת רק את הרישום בהיסטוריה, והבקשה עצמה נשארת</div>';
+  if(!l.length)h+='<div class="mu" style="padding:8px 0">עוד אין רישומים. מעכשיו כל פעולה על בקשה תירשם כאן</div>';
+  l.forEach(m=>{
+    const rq={type:m.type,time:m.time},ds=T[m.type]?desc(rq):'';
+    h+='<div class="hs"><span class="hs-a '+(AC[m.act]||'up')+'">'+esc(m.act)+'</span><div class="hs-b"><div><b>'+esc(m.who)+'</b>'+(ds?' · '+esc(ds):'')+(m.date?' · ל־'+esc(fmtD(m.date)):'')+'</div><div class="mu hs-m">'+fmtDT(m.ts)+(m.by&&m.by!==m.who?' · על ידי '+esc(m.by):'')+(m.dev?' · '+esc(m.dev):'')+(m.note?' · הערה: '+esc(m.note):'')+'</div></div><button onclick="delMsg(\''+m.id+'\')">מחיקה</button></div>';
+  });
+  return h+'</div>';
+}
+async function delAllLogs(){
+  if(armed!=='logs'){armed='logs';render();return}
+  armed='';
+  try{for(const m of msgs.filter(m=>m.to===me.id&&m.kind==='log'))await db.collection('messages').doc(m.id).delete();toast('ההיסטוריה נמחקה')}catch(x){toast('אירעה שגיאה במחיקה')}
+}
+async function save(){
+  const e=$('#me');
+  if(!mt){e.textContent='יש לבחור קטגוריה';return}
+  const time=mt==='vac'?'':$('#mtime').value;
+  if(mt!=='vac'&&!time){e.textContent='יש לבחור שעה';return}
+  const mg=me.role==='manager'||me.role==='admin';
+  if(isLocked(mdate)&&!mg){e.textContent='היום נעול';return}
+  let em='';
+  
+  const d={uid:me.id,name:me.name,date:mdate,type:mt,time:time,note:$('#mnote').value.trim(),status:mg?'approved':'pending',ts:Date.now()};
+  const prev=medit?reqs.find(x=>x.id===medit):null,dv=devName();
+  if(prev){d.cts=prev.cts||prev.ts||Date.now();d.cdev=prev.cdev||'';d.ets=Date.now();d.edev=dv}else{d.cts=Date.now();d.cdev=dv}
+  try{
+    let rid=medit;
+    if(medit)await db.collection('requests').doc(medit).set(d);
+    else rid=(await db.collection('requests').add(d)).id;
+    const boss=users.find(u=>u.role==='manager');
+    const wasEdit=!!medit;
+    closeM();
+    logEv(wasEdit?'עדכון':'הגשה',Object.assign({},d,{id:rid}));
+    if(!mg&&boss){
+      const text=me.name+' '+(wasEdit?'עדכן/ה בקשה':'הגיש/ה בקשה')+': '+desc(d)+' · '+fmtD(d.date);
+      d.rid=rid;
+      sendMail(boss,d,text,em);
+      const an=analyze(d);
+      db.collection('messages').add({to:boss.id,rid:rid,text:text,alert:alertText(an),ts:Date.now(),read:false}).catch(()=>{});
+    }
+  }catch(x){e.textContent='אירעה שגיאה בשמירה, נסו שוב'}
+}
 const MAIL_FROM='ab63187881@gmail.com',MAIL_TO='aa63187881@gmail.com';
 function mailParts(d){const day=kd(d.date).toLocaleDateString('he-IL');return{subject:'בקשה מעובד – '+d.name,body:'בקשה מעובד: '+d.name+'\nסוג הבקשה: '+desc(d)+'\nתאריך: '+day+(d.note?'\nסיבה / הערות: '+d.note:'')}}
 function mailFallback(d){const mp=mailParts(d),u='mailto:'+MAIL_TO+'?subject='+encodeURIComponent(mp.subject)+'&body='+encodeURIComponent(mp.body);
