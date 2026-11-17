@@ -1,7 +1,7 @@
 // שליחת תזכורות יום לפני בקשה. רץ אוטומטית ב-GitHub Actions (ראו reminders.yml)
 const KEY='AIzaSyA5-ySBUkH4ZO9ZqMsc3MCgrbo_17u8HfA',PROJECT='employee-vacations-3a755';
 const BASE='https://firestore.googleapis.com/v1/projects/'+PROJECT+'/databases/(default)/documents';
-const MAIL_FROM='ab63187881@gmail.com',MAIL_TO='aa63187881@gmail.com';
+const MAIL_FROM='ab63187881@gmail.com',MAIL_TO='a0527190852@gmail.com';
 const EJ={service:'service_lnwmdw9',template:'template_mk2vhtr',publicKey:'edHZJcWruFB4Ulcgh',privateKey:process.env.EMAILJS_PRIVATE_KEY};
 const APP_URL=process.env.APP_URL||'';
 let AUTH={};
